@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/pkg/errors"
@@ -152,6 +153,20 @@ func (s *Store) DeleteAccount(userID string) error {
 		return errors.Wrap(appErr, "failed to delete the calendar account")
 	}
 	return nil
+}
+
+// Claim records a key once: it returns true the first time, false while the key exists. Keys
+// expire after ttl.
+func (s *Store) Claim(key string, ttl time.Duration) (bool, error) {
+	claimed, appErr := s.kv.KVSetWithOptions(key, []byte{1}, model.PluginKVSetOptions{
+		Atomic:          true,
+		OldValue:        nil,
+		ExpireInSeconds: int64(ttl / time.Second),
+	})
+	if appErr != nil {
+		return false, errors.Wrap(appErr, "failed to claim a key")
+	}
+	return claimed, nil
 }
 
 // ListAccountUsers returns the users who have a calendar account.

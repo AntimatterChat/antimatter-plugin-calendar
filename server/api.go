@@ -231,6 +231,7 @@ func (p *Plugin) handleSaveAccount(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, err)
 		return
 	}
+	p.eventsChanged(userID(r))
 	p.writeJSON(w, map[string]any{"account": newAccountView(account)})
 }
 
@@ -239,6 +240,7 @@ func (p *Plugin) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, err)
 		return
 	}
+	p.eventsChanged(userID(r))
 	p.writeJSON(w, map[string]any{"account": nil})
 }
 
@@ -387,13 +389,23 @@ func (p *Plugin) channelLink(userID, channelID string) *EventLink {
 	return link
 }
 
+// eventsChanged makes the reminders read the events of a user again.
+func (p *Plugin) eventsChanged(userID string) {
+	if p.reminders != nil {
+		p.reminders.invalidate(userID)
+	}
+}
+
 // permalink returns the URL of a channel, for other calendar clients.
 func (p *Plugin) permalink(link *EventLink) string {
+	if link == nil || link.TeamName == "" || link.ChannelName == "" {
+		return ""
+	}
 	siteURL := ""
 	if cfg := p.API.GetConfig(); cfg != nil && cfg.ServiceSettings.SiteURL != nil {
 		siteURL = strings.TrimSuffix(*cfg.ServiceSettings.SiteURL, "/")
 	}
-	if siteURL == "" || link == nil || link.TeamName == "" || link.ChannelName == "" {
+	if siteURL == "" {
 		return ""
 	}
 	return siteURL + "/" + link.TeamName + "/channels/" + link.ChannelName
@@ -450,6 +462,7 @@ func (p *Plugin) handleCreateEvent(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, err)
 		return
 	}
+	p.eventsChanged(userID(r))
 	p.writeJSON(w, map[string]string{"path": objectPath, "etag": etag})
 }
 
@@ -572,6 +585,7 @@ func (p *Plugin) handleUpdateEvent(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, err)
 		return
 	}
+	p.eventsChanged(userID(r))
 	p.writeJSON(w, map[string]string{"path": objectPath, "etag": etag})
 }
 
@@ -596,6 +610,7 @@ func (p *Plugin) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 			p.writeError(w, err)
 			return
 		}
+		p.eventsChanged(userID(r))
 		p.writeJSON(w, map[string]string{"status": "ok"})
 		return
 	}
@@ -627,5 +642,6 @@ func (p *Plugin) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, err)
 		return
 	}
+	p.eventsChanged(userID(r))
 	p.writeJSON(w, map[string]string{"status": "ok"})
 }
