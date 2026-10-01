@@ -1,0 +1,484 @@
+/*
+ * The calendar panel. Under the Fusion web UI, its building blocks carry the Fusion mockup's am-
+ * classes, which Fusion styles; in the classic web app they carry amc- classes styled here after
+ * the mockup, with the classic theme's colours. The parts the mockup doesn't have are styled here
+ * for both.
+ */
+
+.amc-root {
+    --amc-text: var(--am-text, var(--center-channel-color));
+    --amc-text-2: var(--am-text-2, rgba(var(--center-channel-color-rgb), 0.88));
+    --amc-muted: var(--am-muted, rgba(var(--center-channel-color-rgb), 0.64));
+    --amc-line: var(--am-line, rgba(var(--center-channel-color-rgb), 0.16));
+    --amc-side: var(--am-side, rgba(var(--center-channel-color-rgb), 0.04));
+    --amc-raise: var(--am-raise, rgba(var(--center-channel-color-rgb), 0.08));
+    --amc-raise-2: var(--am-raise-2, rgba(var(--center-channel-color-rgb), 0.12));
+    --amc-hover: var(--am-hover, rgba(var(--center-channel-color-rgb), 0.08));
+    --amc-accent: var(--am-matter, var(--button-bg));
+    --amc-accent-text: var(--button-color, #fff);
+    --amc-danger: var(--am-danger, var(--error-text));
+    --amc-mono: var(--am-font-mono, ui-monospace, monospace);
+
+    position: relative;
+    height: 100%;
+    overflow-y: auto;
+    color: var(--amc-text);
+}
+
+/* ---------- Classic versions of the mockup's blocks ---------- */
+
+.amc-root.amc-classic button {
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 0;
+}
+
+.amc-app-panel {
+    display: grid;
+    gap: 10px;
+    align-content: start;
+    padding: 10px 12px 16px;
+}
+
+.amc-app-h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 2px 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--amc-muted);
+}
+
+.amc-grow {
+    flex: 1;
+}
+
+.amc-sub {
+    font-size: 12px;
+    color: var(--amc-muted);
+}
+
+.amc-ic {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.amc-ic.amc-sm {
+    width: 16px;
+    height: 16px;
+}
+
+.amc-ic.amc-xs {
+    width: 13px;
+    height: 13px;
+    vertical-align: -2px;
+}
+
+.amc-root .amc-icon-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    color: var(--amc-muted);
+}
+
+.amc-root .amc-icon-btn:hover {
+    background: var(--amc-hover);
+    color: var(--amc-text);
+}
+
+.amc-root .amc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 8px;
+    background: var(--amc-raise);
+    color: var(--amc-text);
+    font-weight: 600;
+}
+
+.amc-root .amc-btn:hover {
+    background: var(--amc-raise-2);
+}
+
+.amc-root .amc-btn.amc-primary {
+    background: var(--amc-accent);
+    color: var(--amc-accent-text);
+}
+
+.amc-root .amc-btn.amc-danger {
+    background: var(--amc-danger);
+    color: #fff;
+}
+
+.amc-root .amc-chip-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 8px;
+    background: var(--amc-raise);
+    color: var(--amc-text-2);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.amc-empty {
+    padding: 28px 18px;
+    color: var(--amc-muted);
+    font-size: 14px;
+    text-align: center;
+}
+
+.amc-field {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    font-weight: 400;
+}
+
+.amc-field > span {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--amc-muted);
+}
+
+.amc-field small {
+    color: var(--amc-muted);
+    font-size: 12.5px;
+}
+
+.amc-field input,
+.amc-field select,
+.amc-field textarea {
+    width: 100%;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--amc-line);
+    border-radius: 8px;
+    background: var(--center-channel-bg);
+    color: var(--amc-text);
+    outline: none;
+}
+
+.amc-field textarea {
+    min-height: 80px;
+    padding: 8px 10px;
+    resize: vertical;
+}
+
+.amc-field input:focus,
+.amc-field select:focus,
+.amc-field textarea:focus {
+    border-color: var(--amc-accent);
+}
+
+.amc-seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--amc-line);
+    border-radius: 10px;
+    background: var(--amc-side);
+}
+
+.amc-root .amc-seg button {
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 7px;
+    color: var(--amc-muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.amc-root .amc-seg button.amc-on {
+    background: var(--amc-raise-2);
+    color: var(--amc-text);
+}
+
+/* The agenda of the mockup */
+.amc-cal-day {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.amc-cal-day b {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.amc-cal-day span {
+    color: var(--amc-muted);
+    font-size: 13px;
+}
+
+.amc-agenda {
+    display: grid;
+    gap: 6px;
+}
+
+.amc-event {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 10px;
+    border-left: 3px solid var(--amc-ev, var(--amc-accent));
+    border-radius: 9px;
+    background: var(--amc-side);
+}
+
+.amc-event.amc-now {
+    background: var(--amc-raise);
+}
+
+.amc-when {
+    color: var(--amc-text-2);
+    font-family: var(--amc-mono);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.amc-event .amc-sub {
+    display: block;
+}
+
+/* ---------- Parts the mockup doesn't have, for both web apps ---------- */
+
+.amc-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.amc-root .amc-event-main {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.amc-event-main b {
+    display: block;
+    overflow: hidden;
+    font-size: 13.5px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.amc-event-main .am-sub,
+.amc-event-main .amc-sub {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.amc-repeat {
+    margin-left: 6px;
+    color: var(--amc-muted);
+}
+
+.amc-day-h {
+    margin: 4px 2px 0;
+    color: var(--amc-text-2);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.amc-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(64px, 1fr));
+    gap: 4px;
+    overflow-x: auto;
+}
+
+.amc-week-day {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    min-height: 120px;
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--amc-side);
+}
+
+.amc-root .amc-week-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2px 0 4px;
+    border: 0;
+    background: none;
+    color: var(--amc-muted);
+    font: inherit;
+    font-size: 11px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.amc-week-head b {
+    color: var(--amc-text);
+    font-size: 16px;
+}
+
+.amc-week-day.amc-today .amc-week-head b {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--amc-accent);
+    color: #fff;
+}
+
+.amc-root .amc-chip {
+    display: grid;
+    min-width: 0;
+    padding: 3px 5px;
+    border: 0;
+    border-left: 3px solid var(--amc-ev, var(--amc-accent));
+    border-radius: 5px;
+    background: var(--amc-raise);
+    color: var(--amc-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.amc-chip.amc-now {
+    outline: 1px solid var(--amc-ev, var(--amc-accent));
+}
+
+.amc-chip.amc-all-day {
+    background: color-mix(in srgb, var(--amc-ev, var(--amc-accent)) 22%, transparent);
+}
+
+.amc-chip-time {
+    color: var(--amc-muted);
+    font-family: var(--amc-mono);
+    font-size: 10.5px;
+}
+
+.amc-chip-title {
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.amc-notice,
+.amc-error {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--amc-side);
+    font-size: 13px;
+}
+
+.amc-error {
+    border-left: 3px solid var(--amc-danger);
+}
+
+.amc-root .amc-link {
+    color: var(--amc-accent);
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.amc-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.amc-fieldset {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.amc-fieldset .am-field,
+.amc-app-panel > .am-field {
+    margin-bottom: 0;
+}
+
+.amc-field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.amc-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+/* Fusion only styles text inputs: date, time and password inputs look the same */
+.amc-root .am-field input.amc-input {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid var(--am-line);
+    border-radius: 9px;
+    background: var(--am-side);
+    color: var(--am-text);
+    outline: none;
+    color-scheme: inherit;
+}
+
+.amc-root .am-field input.amc-input:focus {
+    border-color: var(--am-matter);
+}
+
+.amc-form-head h3,
+.amc-editor-title {
+    margin: 4px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.amc-form-head p {
+    margin: 0;
+    color: var(--amc-muted);
+    font-size: 13.5px;
+}
+
+.amc-note {
+    color: var(--amc-muted);
+    font-size: 12px;
+}
