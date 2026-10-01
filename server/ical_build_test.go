@@ -75,8 +75,8 @@ func TestExcludeOccurrence(t *testing.T) {
 	paris := mustLoad(t, "Europe/Paris")
 	cal := decodeCalendar(t, standupCalendar)
 
-	require.NoError(t, excludeOccurrence(cal, time.Date(2026, 10, 19, 9, 30, 0, 0, paris), time.Now()))
-	require.NoError(t, excludeOccurrence(cal, time.Date(2026, 10, 26, 9, 30, 0, 0, paris), time.Now()))
+	require.NoError(t, excludeOccurrence(cal, time.Date(2026, 10, 19, 9, 30, 0, 0, paris), paris, time.Now()))
+	require.NoError(t, excludeOccurrence(cal, time.Date(2026, 10, 26, 9, 30, 0, 0, paris), paris, time.Now()))
 
 	occurrences := expandObject("", "", "", cal, time.Date(2026, 10, 19, 0, 0, 0, 0, paris), time.Date(2026, 11, 2, 0, 0, 0, 0, paris), paris)
 	assert.Empty(t, occurrences, "the occurrence and the override of the other one are gone")
@@ -92,7 +92,7 @@ SUMMARY:Single
 END:VEVENT
 END:VCALENDAR
 `)
-	assert.Error(t, excludeOccurrence(single, time.Now(), time.Now()))
+	assert.Error(t, excludeOccurrence(single, time.Now(), paris, time.Now()))
 }
 
 func TestVTimezone(t *testing.T) {

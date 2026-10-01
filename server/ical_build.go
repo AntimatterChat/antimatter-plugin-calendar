@@ -276,21 +276,22 @@ func updateEventObject(cal *ical.Calendar, in *EventInput, now time.Time, permal
 	return nil
 }
 
-// excludeOccurrence removes one occurrence from a recurring event.
-func excludeOccurrence(cal *ical.Calendar, recurrenceID time.Time, now time.Time) error {
+// excludeOccurrence removes one occurrence from a recurring event. All-day occurrences are
+// identified by their midnight in loc.
+func excludeOccurrence(cal *ical.Calendar, recurrenceID time.Time, loc *time.Location, now time.Time) error {
 	ev := masterEvent(cal)
 	if ev == nil || ev.Props.Get(ical.PropRecurrenceRule) == nil {
 		return errNoEvent
 	}
 	startProp := ev.Props.Get(ical.PropDateTimeStart)
-	_, allDay, err := propTime(startProp, time.UTC)
+	_, allDay, err := propTime(startProp, loc)
 	if err != nil {
 		return errNoEvent
 	}
 
 	exdate := ical.NewProp(ical.PropExceptionDates)
 	if allDay {
-		exdate.SetDate(recurrenceID)
+		exdate.SetDate(recurrenceID.In(loc))
 	} else {
 		exdate.SetDateTime(recurrenceID.UTC())
 	}
@@ -300,7 +301,7 @@ func excludeOccurrence(cal *ical.Calendar, recurrenceID time.Time, now time.Time
 	children := cal.Children[:0]
 	for _, child := range cal.Children {
 		if child.Name == ical.CompEvent && child.Props.Get(ical.PropRecurrenceID) != nil {
-			if t, _, err := propTime(child.Props.Get(ical.PropRecurrenceID), time.UTC); err == nil && t.Equal(recurrenceID) {
+			if t, _, err := propTime(child.Props.Get(ical.PropRecurrenceID), loc); err == nil && t.Equal(recurrenceID) {
 				continue
 			}
 		}
