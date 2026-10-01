@@ -27,6 +27,16 @@ their own calendar server over CalDAV, and gets reminders from the Calendar bot 
 - **Reminders.** The Calendar bot sends a direct message before events, at the time of their
   alarms or, for events without alarms, the time each user chooses (10 minutes by default). A
   cluster job checks every minute and reads each user's next day of events every 10 minutes.
+  Reminders are written in the user's language and time zone: English, French, German and
+  Spanish for now.
+
+## Translations
+
+The web app's texts are `react-intl` messages with English defaults. The server's texts (the
+reminders) are [go-i18n](https://github.com/nicksnyder/go-i18n) messages with English defaults in
+the code, translated in `assets/i18n/active.<locale>.json`, which the plugin bundle ships. To add
+a language, copy `active.fr.json` to the new locale (as Antimatter names it, e.g. `pt-BR`) and
+translate its values, keeping the `{{.Placeholders}}` and the `one`/`other` plural forms.
 
 ## Configuration
 

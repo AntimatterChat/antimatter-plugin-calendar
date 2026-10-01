@@ -6,6 +6,7 @@ package main
 import (
 	"crypto/tls"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/mattermost/mattermost/server/public/plugin"
 	"github.com/mattermost/mattermost/server/public/pluginapi/cluster"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 )
 
@@ -34,6 +36,9 @@ type Plugin struct {
 	reminders *reminderService
 	job       *cluster.Job
 
+	// translations translate the reminders to the users' languages.
+	translations *i18n.Bundle
+
 	// tlsConfig is nil for the default TLS configuration (tests set their own CA).
 	tlsConfig *tls.Config
 }
@@ -51,6 +56,15 @@ func (p *Plugin) OnActivate() error {
 
 	p.store = NewStore(p.API, box)
 	p.router = p.newRouter()
+
+	bundlePath, err := p.API.GetBundlePath()
+	if err != nil {
+		return errors.Wrap(err, "failed to find the plugin bundle")
+	}
+	if p.translations, err = newTranslations(filepath.Join(bundlePath, translationsDir)); err != nil {
+		// Reminders are in English then
+		p.API.LogWarn("Failed to load the translations", "err", err.Error())
+	}
 
 	p.botID, err = p.API.EnsureBotUser(&model.Bot{
 		Username:    "calendar",

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 )
 
@@ -150,14 +151,20 @@ func (s *reminderService) run(now time.Time) {
 
 // userLocation returns the time zone of a user.
 func (s *reminderService) userLocation(userID string) *time.Location {
+	loc, _ := s.userSettings(userID)
+	return loc
+}
+
+// userSettings returns the time zone and the locale of a user.
+func (s *reminderService) userSettings(userID string) (*time.Location, string) {
 	user, appErr := s.p.API.GetUser(userID)
 	if appErr != nil {
-		return time.UTC
+		return time.UTC, ""
 	}
 	if loc, err := time.LoadLocation(user.GetPreferredTimezone()); err == nil {
-		return loc
+		return loc, user.Locale
 	}
-	return time.UTC
+	return time.UTC, user.Locale
 }
 
 // fetch reads the upcoming reminders of a user.
@@ -218,7 +225,8 @@ func (s *reminderService) send(userID string, r reminder, now time.Time) error {
 			link.Kind = r.occurrence.Link.Kind
 		}
 	}
-	message := reminderMessage(r.occurrence, now, s.userLocation(userID), link, s.p.permalink(link))
+	loc, locale := s.userSettings(userID)
+	message := reminderMessage(newTranslator(s.p.translations, locale), r.occurrence, now, loc, link, s.p.permalink(link))
 
 	post := &model.Post{
 		UserId:    s.p.botID,
@@ -237,6 +245,45 @@ func (s *reminderService) send(userID string, r reminder, now time.Time) error {
 	return nil
 }
 
+// The messages of reminders. Their translations are in assets/i18n.
+var (
+	msgStarts      = &i18n.Message{ID: "calendar.reminder.starts", Other: ":calendar: **{{.Summary}}** starts {{.When}}."}
+	msgUntitled    = &i18n.Message{ID: "calendar.reminder.untitled", Other: "(untitled event)"}
+	msgTodayAllDay = &i18n.Message{ID: "calendar.reminder.today_all_day", Other: "today, all day"}
+	msgDateAllDay  = &i18n.Message{ID: "calendar.reminder.date_all_day", Other: "{{.Date}}, all day"}
+	msgNow         = &i18n.Message{ID: "calendar.reminder.now", Other: "now, at {{.Time}}"}
+	msgInMinutes   = &i18n.Message{ID: "calendar.reminder.in_minutes", One: "in {{.Count}} minute, at {{.Time}}", Other: "in {{.Count}} minutes, at {{.Time}}"}
+	msgInAnHour    = &i18n.Message{ID: "calendar.reminder.in_an_hour", Other: "in an hour, at {{.Time}}"}
+	msgInHours     = &i18n.Message{ID: "calendar.reminder.in_hours", One: "in {{.Count}} hour, at {{.Time}}", Other: "in {{.Count}} hours, at {{.Time}}"}
+	msgLocation    = &i18n.Message{ID: "calendar.reminder.location", Other: "Location: {{.Location}}"}
+	msgJoinCall    = &i18n.Message{ID: "calendar.reminder.join_call", Other: "Join the call in {{.Channel}}"}
+	msgJoinChannel = &i18n.Message{ID: "calendar.reminder.join_channel", Other: "Join {{.Channel}}"}
+	msgDate        = &i18n.Message{ID: "calendar.reminder.date", Other: "{{.Weekday}} {{.Day}} {{.Month}}"}
+	msgWeekdays    = [7]*i18n.Message{
+		{ID: "calendar.weekday.sunday", Other: "Sunday"},
+		{ID: "calendar.weekday.monday", Other: "Monday"},
+		{ID: "calendar.weekday.tuesday", Other: "Tuesday"},
+		{ID: "calendar.weekday.wednesday", Other: "Wednesday"},
+		{ID: "calendar.weekday.thursday", Other: "Thursday"},
+		{ID: "calendar.weekday.friday", Other: "Friday"},
+		{ID: "calendar.weekday.saturday", Other: "Saturday"},
+	}
+	msgMonths = [12]*i18n.Message{
+		{ID: "calendar.month.january", Other: "January"},
+		{ID: "calendar.month.february", Other: "February"},
+		{ID: "calendar.month.march", Other: "March"},
+		{ID: "calendar.month.april", Other: "April"},
+		{ID: "calendar.month.may", Other: "May"},
+		{ID: "calendar.month.june", Other: "June"},
+		{ID: "calendar.month.july", Other: "July"},
+		{ID: "calendar.month.august", Other: "August"},
+		{ID: "calendar.month.september", Other: "September"},
+		{ID: "calendar.month.october", Other: "October"},
+		{ID: "calendar.month.november", Other: "November"},
+		{ID: "calendar.month.december", Other: "December"},
+	}
+)
+
 // escapeMarkdown keeps the text of an event from being read as Markdown or mentioning anyone.
 func escapeMarkdown(s string) string {
 	replacer := strings.NewReplacer(
@@ -246,40 +293,44 @@ func escapeMarkdown(s string) string {
 	return replacer.Replace(s)
 }
 
-// reminderMessage is the text of a reminder.
-func reminderMessage(o Occurrence, now time.Time, loc *time.Location, link *EventLink, permalink string) string {
+// reminderMessage is the text of a reminder, in the user's language.
+func reminderMessage(t *translator, o Occurrence, now time.Time, loc *time.Location, link *EventLink, permalink string) string {
 	start := time.UnixMilli(o.Start).In(loc)
 	summary := escapeMarkdown(o.Summary)
 	if summary == "" {
-		summary = "(untitled event)"
+		summary = t.T(msgUntitled, nil)
 	}
 
+	clock := start.Format("15:04")
 	var when string
 	switch {
 	case o.AllDay:
-		when = "today, all day"
+		when = t.T(msgTodayAllDay, nil)
 		if start.YearDay() != now.In(loc).YearDay() {
-			when = start.Format("Monday 2 January") + ", all day"
+			date := t.T(msgDate, map[string]any{
+				"Weekday": t.T(msgWeekdays[start.Weekday()], nil),
+				"Day":     start.Day(),
+				"Month":   t.T(msgMonths[start.Month()-1], nil),
+			})
+			when = t.T(msgDateAllDay, map[string]any{"Date": date})
 		}
 	case !start.After(now):
-		when = "now, at " + start.Format("15:04")
+		when = t.T(msgNow, map[string]any{"Time": clock})
 	default:
 		minutes := int(start.Sub(now).Round(time.Minute) / time.Minute)
-		in := fmt.Sprintf("in %d minutes", minutes)
 		switch {
-		case minutes == 1:
-			in = "in 1 minute"
 		case minutes >= 120:
-			in = fmt.Sprintf("in %d hours", minutes/60)
+			when = t.T(msgInHours, map[string]any{"Count": minutes / 60, "Time": clock})
 		case minutes >= 60:
-			in = "in an hour"
+			when = t.T(msgInAnHour, map[string]any{"Time": clock})
+		default:
+			when = t.T(msgInMinutes, map[string]any{"Count": minutes, "Time": clock})
 		}
-		when = in + ", at " + start.Format("15:04")
 	}
 
-	lines := []string{fmt.Sprintf(":calendar: **%s** starts %s.", summary, when)}
+	lines := []string{t.T(msgStarts, map[string]any{"Summary": summary, "When": when})}
 	if o.Location != "" {
-		lines = append(lines, "Location: "+escapeMarkdown(o.Location))
+		lines = append(lines, t.T(msgLocation, map[string]any{"Location": escapeMarkdown(o.Location)}))
 	}
 	if link != nil {
 		name := escapeMarkdown(link.DisplayName)
@@ -288,9 +339,9 @@ func reminderMessage(o Occurrence, now time.Time, loc *time.Location, link *Even
 			target = fmt.Sprintf("[%s](%s)", name, permalink)
 		}
 		if link.Kind == LinkCall {
-			lines = append(lines, "Join the call in "+target)
+			lines = append(lines, t.T(msgJoinCall, map[string]any{"Channel": target}))
 		} else {
-			lines = append(lines, "Join "+target)
+			lines = append(lines, t.T(msgJoinChannel, map[string]any{"Channel": target}))
 		}
 	}
 	return strings.Join(lines, "\n")

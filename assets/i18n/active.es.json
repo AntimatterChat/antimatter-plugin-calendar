@@ -1,0 +1,39 @@
+{
+    "calendar.month.april": "abril",
+    "calendar.month.august": "agosto",
+    "calendar.month.december": "diciembre",
+    "calendar.month.february": "febrero",
+    "calendar.month.january": "enero",
+    "calendar.month.july": "julio",
+    "calendar.month.june": "junio",
+    "calendar.month.march": "marzo",
+    "calendar.month.may": "mayo",
+    "calendar.month.november": "noviembre",
+    "calendar.month.october": "octubre",
+    "calendar.month.september": "septiembre",
+    "calendar.reminder.date": "{{.Weekday}} {{.Day}} de {{.Month}}",
+    "calendar.reminder.date_all_day": "{{.Date}}, todo el día",
+    "calendar.reminder.in_an_hour": "en una hora, a las {{.Time}}",
+    "calendar.reminder.in_hours": {
+        "one": "en {{.Count}} hora, a las {{.Time}}",
+        "other": "en {{.Count}} horas, a las {{.Time}}"
+    },
+    "calendar.reminder.in_minutes": {
+        "one": "en {{.Count}} minuto, a las {{.Time}}",
+        "other": "en {{.Count}} minutos, a las {{.Time}}"
+    },
+    "calendar.reminder.join_call": "Únete a la llamada en {{.Channel}}",
+    "calendar.reminder.join_channel": "Únete a {{.Channel}}",
+    "calendar.reminder.location": "Lugar: {{.Location}}",
+    "calendar.reminder.now": "ahora, a las {{.Time}}",
+    "calendar.reminder.starts": ":calendar: **{{.Summary}}** empieza {{.When}}.",
+    "calendar.reminder.today_all_day": "hoy, todo el día",
+    "calendar.reminder.untitled": "(evento sin título)",
+    "calendar.weekday.friday": "viernes",
+    "calendar.weekday.monday": "lunes",
+    "calendar.weekday.saturday": "sábado",
+    "calendar.weekday.sunday": "domingo",
+    "calendar.weekday.thursday": "jueves",
+    "calendar.weekday.tuesday": "martes",
+    "calendar.weekday.wednesday": "miércoles"
+}
