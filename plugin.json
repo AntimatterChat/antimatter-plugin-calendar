@@ -22,6 +22,28 @@
     "settings_schema": {
         "header": "Users connect their own calendar server over CalDAV. Passwords are stored encrypted; users should use app passwords where their provider offers them.",
         "footer": "",
-        "settings": []
+        "settings": [
+            {
+                "key": "EnableReminders",
+                "display_name": "Send reminders",
+                "type": "bool",
+                "default": true,
+                "help_text": "When true, the Calendar bot sends users a direct message before their events, at the time of the event's own alarm or, for events without one, the time each user chooses."
+            },
+            {
+                "key": "AllowPrivateNetworks",
+                "display_name": "Allow calendar servers on private networks",
+                "type": "bool",
+                "default": false,
+                "help_text": "When true, users can connect to calendar servers on loopback, private and link-local addresses, such as a calendar server on your internal network. Leave it off unless your calendar server is on such a network: it would also let users reach the other internal services of the network this server runs in."
+            },
+            {
+                "key": "AllowInsecureConnections",
+                "display_name": "Allow unencrypted connections",
+                "type": "bool",
+                "default": false,
+                "help_text": "When true, users can connect to calendar servers over plain HTTP. Their passwords and calendars then cross the network unencrypted."
+            }
+        ]
     }
 }

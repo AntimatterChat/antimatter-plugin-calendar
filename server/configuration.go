@@ -17,7 +17,18 @@ import (
 // configuration can change at any time, access to the configuration must be synchronized. The
 // strategy used in this plugin is to guard a pointer to the configuration, and clone the entire
 // struct whenever it changes. You may replace this with whatever strategy you choose.
-type configuration struct{}
+type configuration struct {
+	// AllowPrivateNetworks lets users connect to calendar servers on loopback, private and
+	// link-local addresses. Off by default, so users can't reach the internal services of the
+	// network the server runs in.
+	AllowPrivateNetworks bool
+
+	// AllowInsecureConnections lets users connect to calendar servers over plain HTTP.
+	AllowInsecureConnections bool
+
+	// EnableReminders makes the Calendar bot remind users of their events.
+	EnableReminders bool
+}
 
 // Clone shallow copies the configuration. Your implementation may require a deep copy if
 // your configuration has reference types.
