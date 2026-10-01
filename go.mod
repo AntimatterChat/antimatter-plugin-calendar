@@ -3,9 +3,11 @@ module github.com/antimatterchat/antimatter-plugin-calendar
 go 1.26.7
 
 require (
+	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/mattermost/mattermost/server/public v0.4.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
+	github.com/teambition/rrule-go v1.8.2
 )
 
 require (

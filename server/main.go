@@ -4,6 +4,9 @@
 package main
 
 import (
+	// The time zones of events must be known wherever the server runs
+	_ "time/tzdata"
+
 	"github.com/mattermost/mattermost/server/public/plugin"
 )
 
