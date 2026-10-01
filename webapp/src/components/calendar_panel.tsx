@@ -7,7 +7,7 @@ import {useIntl} from 'react-intl';
 import {am, own} from '../class_names';
 import * as client from '../client';
 import type {Account, Calendar, Occurrence} from '../client';
-import {addDays, startOfDay, startOfWeek} from '../utils';
+import {addDays, calendarColor, startOfDay, startOfWeek} from '../utils';
 import {isFusionUI} from '../web_ui';
 
 import AccountForm from './account_form';
@@ -23,6 +23,26 @@ type View =
     {kind: 'calendar'} |
     {kind: 'editor'; occurrence: Occurrence | null} |
     {kind: 'settings'};
+
+// HIDDEN_KEY keeps the calendars the user hid, in this browser.
+const HIDDEN_KEY = 'antimatter-calendar-hidden';
+
+function loadHidden(): string[] {
+    try {
+        const hidden = JSON.parse(window.localStorage.getItem(HIDDEN_KEY) || '[]');
+        return Array.isArray(hidden) ? hidden : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveHidden(hidden: string[]) {
+    try {
+        window.localStorage.setItem(HIDDEN_KEY, JSON.stringify(hidden));
+    } catch {
+        // Not kept, then
+    }
+}
 
 // Events are read again every few minutes, and the current event highlighted every minute.
 const REFRESH_INTERVAL = 5 * 60 * 1000;
@@ -50,6 +70,7 @@ export default function CalendarPanel() {
     const [view, setView] = useState<View>({kind: 'calendar'});
     const [now, setNow] = useState(() => Date.now());
     const [reloadKey, setReloadKey] = useState(0);
+    const [hidden, setHidden] = useState<string[]>(loadHidden);
     const [error, setError] = useState('');
 
     const loadAccount = useCallback(async () => {
@@ -111,6 +132,12 @@ export default function CalendarPanel() {
     const step = (direction: number) => setDay((d) => addDays(d, direction * (mode === 'week' ? 7 : 1)));
     const reload = () => setReloadKey((k) => k + 1);
     const calendarName = (id: string) => calendars.find((c) => c.id === id)?.name || id;
+    const toggleCalendar = (id: string) => {
+        const next = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
+        setHidden(next);
+        saveHidden(next);
+    };
+    const shown = events?.filter((e) => !hidden.includes(e.calendar)) || null;
 
     let content: React.ReactNode;
     if (!loaded) {
@@ -235,6 +262,24 @@ export default function CalendarPanel() {
                     </button>
                 </div>
                 {error && <div className={own('error')}>{error}</div>}
+                {calendars.length > 1 && (
+                    <div className={own('calendars')}>
+                        {calendars.map((c) => (
+                            <button
+                                key={c.id}
+                                className={am('chip-btn', {on: !hidden.includes(c.id)})}
+                                aria-pressed={!hidden.includes(c.id)}
+                                onClick={() => toggleCalendar(c.id)}
+                            >
+                                <i
+                                    className={own('dot')}
+                                    style={{background: calendarColor(calendars, c.id)}}
+                                />
+                                {c.name}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 {failures.map((f) => (
                     <div
                         key={f.calendar}
@@ -244,19 +289,19 @@ export default function CalendarPanel() {
                     </div>
                 ))}
                 {events === null && !error && <div className={am('empty')}>{formatMessage(messages.loading)}</div>}
-                {events && mode === 'agenda' && (
+                {shown && mode === 'agenda' && (
                     <Agenda
                         day={day}
-                        events={events}
+                        events={shown}
                         calendars={calendars}
                         now={now}
                         onOpen={open}
                     />
                 )}
-                {events && mode === 'week' && (
+                {shown && mode === 'week' && (
                     <Week
                         weekStart={startOfWeek(day)}
-                        events={events}
+                        events={shown}
                         calendars={calendars}
                         now={now}
                         onOpen={open}

@@ -137,6 +137,7 @@
 .amc-root .amc-chip-btn {
     display: inline-flex;
     align-items: center;
+    gap: 6px;
     height: 30px;
     padding: 0 10px;
     border-radius: 8px;
@@ -320,6 +321,23 @@
 .amc-root .amc-join.amc-join-call {
     background: var(--amc-ok);
     color: #fff;
+}
+
+.amc-calendars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.amc-calendars button:not([aria-pressed="true"]) {
+    opacity: 0.55;
+}
+
+.amc-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
 }
 
 .amc-day-h {
