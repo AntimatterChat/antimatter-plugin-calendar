@@ -193,8 +193,9 @@ func applyManifest(manifest *model.Manifest) error {
 		}
 		manifestStr := string(manifestBytes)
 
-		// Escape newlines
-		manifestStr = strings.ReplaceAll(manifestStr, `\n`, `\\n`)
+		// Escape what the JS template literal would interpret: backslashes (so JSON escapes such as \" and \n
+		// survive), backticks and ${.
+		manifestStr = strings.NewReplacer(`\`, `\\`, "`", "\\`", "${", "\\${").Replace(manifestStr)
 
 		// write generated code to file by using JS file template.
 		if err := os.WriteFile(
