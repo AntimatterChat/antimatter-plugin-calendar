@@ -29,7 +29,8 @@
 
 /* ---------- Classic versions of the mockup's blocks ---------- */
 
-.amc-root.amc-classic button {
+/* The classic app's button styles don't apply; :where() keeps the panel's own rules above this one */
+:where(.amc-root.amc-classic) button {
     border: 0;
     background: none;
     color: inherit;
@@ -424,7 +425,11 @@
 }
 
 .amc-root .amc-link {
+    padding: 0;
+    border: 0;
+    background: none;
     color: var(--amc-accent);
+    font: inherit;
     font-weight: 600;
     text-decoration: underline;
     cursor: pointer;
