@@ -9,6 +9,7 @@ import type {Occurrence} from '../client';
 import {durationMinutes, formatTime} from '../utils';
 
 import Icon from './icon';
+import {useMeeting} from './meeting';
 import {messages} from './messages';
 
 type Props = {
@@ -18,10 +19,12 @@ type Props = {
     onOpen: (event: Occurrence) => void;
 };
 
-// EventRow is an event of the agenda, as in the Fusion mockup: its time, title and details.
+// EventRow is an event of the agenda, as in the Fusion mockup: its time, title, details and the
+// button that joins its meeting.
 export default function EventRow({event, color, now, onOpen}: Props) {
     const {formatMessage, locale} = useIntl();
     const title = event.summary || formatMessage(messages.untitled);
+    const meeting = useMeeting(event.link, title);
 
     const details: string[] = [];
     if (!event.all_day) {
@@ -65,8 +68,11 @@ export default function EventRow({event, color, now, onOpen}: Props) {
                 </b>
                 <span className={am('sub')}>
                     {details.join(' · ')}
+                    {meeting && details.length > 0 && ' · '}
+                    {meeting?.place}
                 </span>
             </button>
+            {meeting?.button}
         </div>
     );
 }

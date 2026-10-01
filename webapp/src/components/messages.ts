@@ -45,6 +45,14 @@ export const messages = defineMessages({
     calendarFailed: {id: 'calendar.calendar_failed', defaultMessage: 'Couldn’t read {calendar}: {error}'},
     repeats: {id: 'calendar.repeats', defaultMessage: 'Repeats'},
 
+    // Joining
+    join: {id: 'calendar.join', defaultMessage: 'Join'},
+    joinCall: {id: 'calendar.join_call', defaultMessage: 'Join call'},
+    startCall: {id: 'calendar.start_call', defaultMessage: 'Start call'},
+    open: {id: 'calendar.open', defaultMessage: 'Open'},
+    callIn: {id: 'calendar.call_in', defaultMessage: 'Call in {channel}'},
+    callWith: {id: 'calendar.call_with', defaultMessage: 'Call with {name}'},
+
     // Editor
     editTitle: {id: 'calendar.editor.edit', defaultMessage: 'Edit event'},
     newTitle: {id: 'calendar.editor.new', defaultMessage: 'New event'},

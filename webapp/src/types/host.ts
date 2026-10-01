@@ -28,6 +28,27 @@ export interface PluginClass {
     uninitialize?(): void;
 }
 
+// The parts of the Calls plugin's API (window.antimatterCalls) the calendar uses to join the
+// calls events are linked to.
+export interface AntimatterCallsAPI {
+    version: number;
+    selectors: {
+        isCallsEnabled(state: GlobalState, channelId: string): boolean;
+        getCall(state: GlobalState, channelId: string): {id: string; startAt: number} | null;
+    };
+    join(channelId: string, opts?: {title?: string; switchCall?: boolean}): Promise<void>;
+}
+
+// The parts of the Voice channels plugin's API (window.antimatterVoiceChannels) the calendar
+// uses to join the voice channels events are linked to.
+export interface AntimatterVoiceChannelsAPI {
+    version: number;
+    selectors: {
+        isVoiceChannel(state: GlobalState, channelId: string): boolean;
+    };
+    join(channelId: string, opts?: {leaveOtherCalls?: boolean}): Promise<void>;
+}
+
 declare global {
     interface Window {
         registerPlugin(pluginId: string, plugin: PluginClass): void;
@@ -35,5 +56,13 @@ declare global {
 
         // Set by the Antimatter web UIs before plugins load
         antimatterWebUI?: WebUI;
+
+        // Set by the Calls and Voice channels plugins when they're installed
+        antimatterCalls?: AntimatterCallsAPI;
+        antimatterVoiceChannels?: AntimatterVoiceChannelsAPI;
+
+        WebappUtils?: {
+            browserHistory: {push: (path: string) => void};
+        };
     }
 }

@@ -16,6 +16,8 @@
     --amc-hover: var(--am-hover, rgba(var(--center-channel-color-rgb), 0.08));
     --amc-accent: var(--am-matter, var(--button-bg));
     --amc-accent-text: var(--button-color, #fff);
+    --amc-anti: var(--am-anti, #22D3EE);
+    --amc-ok: var(--am-ok, var(--online-indicator, #23A55A));
     --amc-danger: var(--am-danger, var(--error-text));
     --amc-mono: var(--am-font-mono, ui-monospace, monospace);
 
@@ -124,6 +126,11 @@
 .amc-root .amc-btn.amc-danger {
     background: var(--amc-danger);
     color: #fff;
+}
+
+.amc-root .amc-btn.amc-anti {
+    background: var(--amc-anti);
+    color: #06232A;
 }
 
 .amc-root .amc-chip-btn {
@@ -301,6 +308,17 @@
 .amc-repeat {
     margin-left: 6px;
     color: var(--amc-muted);
+}
+
+.amc-root .amc-join {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+}
+
+.amc-root .amc-join.amc-join-call {
+    background: var(--amc-ok);
+    color: #fff;
 }
 
 .amc-day-h {
