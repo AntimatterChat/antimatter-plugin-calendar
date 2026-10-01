@@ -47,9 +47,9 @@ For a local test server, [Radicale](https://radicale.org) runs in one command:
 docker run --rm -p 5232:5232 tomsquest/docker-radicale
 ```
 
-Turn on both connection settings above, open `http://localhost:5232` once to create a user (any
-username and password with the default configuration), then connect with server
-`http://localhost:5232`.
+Turn on both connection settings above, set up a user as the image's documentation explains, then
+connect with server `http://localhost:5232` (or the Docker host's address, as seen from the
+Antimatter server).
 
 ## Development
 
