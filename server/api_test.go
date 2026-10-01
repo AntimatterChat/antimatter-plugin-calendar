@@ -231,3 +231,84 @@ func jsonNumber(n int64) string {
 	data, _ := json.Marshal(n)
 	return string(data)
 }
+
+func TestAPIEditOccurrences(t *testing.T) {
+	e := newTestEnv(t)
+	e.connect(t)
+	paris := mustLoad(t, "Europe/Paris")
+
+	w := e.request(t, http.MethodPost, "/api/v1/events", EventInput{
+		Calendar: testWork, Summary: "Sync", TimeZone: "Europe/Paris", Recurrence: RecurrenceWeekly,
+		Start: "2026-10-05T13:00:00+02:00", End: "2026-10-05T13:30:00+02:00",
+	})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	path := decode[map[string]string](t, w)["path"]
+	week := func(n int) int64 {
+		return time.Date(2026, 10, 5+7*n, 13, 0, 0, 0, paris).UnixMilli()
+	}
+	list := func() []string {
+		t.Helper()
+		query := url.Values{"from": {"2026-10-05T00:00:00+02:00"}, "to": {"2026-11-02T00:00:00+01:00"}, "tz": {"Europe/Paris"}}
+		w := e.request(t, http.MethodGet, "/api/v1/events?"+query.Encode(), nil)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var result []string
+		for _, o := range decode[struct {
+			Events []Occurrence `json:"events"`
+		}](t, w).Events {
+			result = append(result, time.UnixMilli(o.Start).In(paris).Format("01-02 15:04")+" "+o.Summary)
+		}
+		return result
+	}
+	target := func(occurrence int64, scope string) string {
+		return "/api/v1/event?tz=Europe/Paris&path=" + url.QueryEscape(path) + "&occurrence=" + jsonNumber(occurrence) + "&scope=" + scope
+	}
+
+	// The second occurrence, as the editor shows it
+	w = e.request(t, http.MethodGet, "/api/v1/event?tz=Europe/Paris&path="+url.QueryEscape(path)+"&occurrence="+jsonNumber(week(1)), nil)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	details := decode[EventDetails](t, w)
+	assert.Equal(t, "2026-10-12T13:00:00+02:00", details.Start)
+	assert.Equal(t, RecurrenceWeekly, details.Recurrence)
+	assert.Equal(t, week(1), details.RecurrenceID)
+
+	// Only that one
+	w = e.request(t, http.MethodPut, target(week(1), ScopeThis), EventInput{
+		Summary: "Sync (demo)", TimeZone: "Europe/Paris", Start: "2026-10-12T15:00:00+02:00", End: "2026-10-12T16:00:00+02:00",
+	})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, []string{"10-05 13:00 Sync", "10-12 15:00 Sync (demo)", "10-19 13:00 Sync", "10-26 13:00 Sync"}, list())
+
+	// That one and the following ones
+	w = e.request(t, http.MethodPut, target(week(2), ScopeFollowing), EventInput{
+		Summary: "Sync (later)", TimeZone: "Europe/Paris", Recurrence: RecurrenceWeekly,
+		Start: "2026-10-19T17:00:00+02:00", End: "2026-10-19T17:30:00+02:00",
+	})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	next := decode[map[string]string](t, w)["path"]
+	assert.NotEqual(t, path, next)
+	assert.Equal(t, []string{"10-05 13:00 Sync", "10-12 15:00 Sync (demo)", "10-19 17:00 Sync (later)", "10-26 17:00 Sync (later)"}, list())
+
+	// From the first occurrence on, the whole series changes; it now ends, which the editor shows
+	// as a rule it keeps
+	w = e.request(t, http.MethodGet, "/api/v1/event?tz=Europe/Paris&path="+url.QueryEscape(path), nil)
+	assert.Equal(t, RecurrenceCustom, decode[EventDetails](t, w).Recurrence)
+	w = e.request(t, http.MethodPut, target(week(0), ScopeFollowing), EventInput{
+		Summary: "Sync (renamed)", TimeZone: "Europe/Paris", Recurrence: RecurrenceCustom,
+		Start: "2026-10-05T13:00:00+02:00", End: "2026-10-05T13:30:00+02:00",
+	})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, path, decode[map[string]string](t, w)["path"])
+	assert.Equal(t, []string{"10-05 13:00 Sync (renamed)", "10-12 15:00 Sync (demo)", "10-19 17:00 Sync (later)", "10-26 17:00 Sync (later)"}, list())
+
+	// Deleting an occurrence and the following ones
+	path = next
+	w = e.request(t, http.MethodDelete, target(week(3), ScopeFollowing), nil)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, []string{"10-05 13:00 Sync (renamed)", "10-12 15:00 Sync (demo)", "10-19 17:00 Sync (later)"}, list())
+	w = e.request(t, http.MethodDelete, "/api/v1/event?tz=Europe/Paris&path="+url.QueryEscape(path)+"&occurrence="+jsonNumber(time.Date(2026, 10, 19, 17, 0, 0, 0, paris).UnixMilli())+"&scope=following", nil)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, []string{"10-05 13:00 Sync (renamed)", "10-12 15:00 Sync (demo)"}, list())
+
+	w = e.request(t, http.MethodPut, target(week(1), "everything"), EventInput{Summary: "x", Start: "2026-10-12T15:00:00+02:00", End: "2026-10-12T16:00:00+02:00"})
+	assert.Equal(t, http.StatusNotFound, w.Code, "the object of the second series is gone")
+}

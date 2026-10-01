@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -14,8 +15,10 @@ import (
 	"time"
 
 	"github.com/emersion/go-ical"
+	"github.com/emersion/go-webdav/caldav"
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -64,6 +67,9 @@ type EventDetails struct {
 	Recurrence  string     `json:"recurrence"`
 	Alarm       *int       `json:"alarm"`
 	Link        *EventLink `json:"link,omitempty"`
+
+	// RecurrenceID is the occurrence the details are of, for an occurrence of a recurring event.
+	RecurrenceID int64 `json:"recurrence_id,omitempty"`
 }
 
 // calendarError is a calendar whose events couldn't be read.
@@ -487,7 +493,15 @@ func (p *Plugin) handleGetEvent(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, err)
 		return
 	}
-	details, err := eventDetails(object.Data, loc)
+	var details *EventDetails
+	if occurrence := r.URL.Query().Get("occurrence"); occurrence != "" {
+		var recurrenceID time.Time
+		if recurrenceID, err = queryOccurrence(occurrence, loc); err == nil {
+			details, err = occurrenceDetails(object.Data, recurrenceID, loc)
+		}
+	} else {
+		details, err = eventDetails(object.Data, loc)
+	}
 	if err != nil {
 		p.writeError(w, err)
 		return
@@ -509,6 +523,11 @@ func eventDetails(cal *ical.Calendar, loc *time.Location) (*EventDetails, error)
 	if ev == nil {
 		return nil, errNoEvent
 	}
+	return componentDetails(ev, loc)
+}
+
+// componentDetails returns an event as the editor shows it.
+func componentDetails(ev *ical.Component, loc *time.Location) (*EventDetails, error) {
 	start, end, allDay, err := eventTimes(ev, loc)
 	if err != nil {
 		return nil, newAPIError(http.StatusUnprocessableEntity, "this event can't be read")
@@ -576,7 +595,38 @@ func (p *Plugin) handleUpdateEvent(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, errChanged)
 		return
 	}
-	if err := updateEventObject(object.Data, &in, time.Now(), permalink); err != nil {
+
+	now := time.Now()
+	if occurrence := r.URL.Query().Get("occurrence"); occurrence != "" {
+		loc, err := queryLocation(r)
+		if err != nil {
+			p.writeError(w, err)
+			return
+		}
+		recurrenceID, err := queryOccurrence(occurrence, loc)
+		if err != nil {
+			p.writeError(w, err)
+			return
+		}
+		switch r.URL.Query().Get("scope") {
+		case "", ScopeThis:
+			err = overrideOccurrence(object.Data, recurrenceID, loc, &in, now, permalink)
+		case ScopeFollowing:
+			var path, etag string
+			path, etag, err = p.editFollowing(r.Context(), s, object, recurrenceID, loc, &in, now, permalink)
+			if err == nil {
+				p.eventsChanged(userID(r))
+				p.writeJSON(w, map[string]string{"path": path, "etag": etag})
+				return
+			}
+		default:
+			err = newAPIError(http.StatusBadRequest, "invalid scope")
+		}
+		if err != nil {
+			p.writeError(w, err)
+			return
+		}
+	} else if err := updateEventObject(object.Data, &in, now, permalink); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -589,8 +639,60 @@ func (p *Plugin) handleUpdateEvent(w http.ResponseWriter, r *http.Request) {
 	p.writeJSON(w, map[string]string{"path": objectPath, "etag": etag})
 }
 
+// queryOccurrence parses the recurrence ID of an occurrence, in milliseconds.
+func queryOccurrence(value string, loc *time.Location) (time.Time, error) {
+	ms, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return time.Time{}, newAPIError(http.StatusBadRequest, "invalid occurrence")
+	}
+	return time.UnixMilli(ms).In(loc), nil
+}
+
+// editFollowing applies an edit to an occurrence of a recurring event and the following ones: the
+// series ends before the occurrence, and a new series with the edit starts with it. From the
+// first occurrence on, that's the whole series. It returns the object of the edited events.
+func (p *Plugin) editFollowing(ctx context.Context, s *session, object *caldav.CalendarObject, recurrenceID time.Time, loc *time.Location, in *EventInput, now time.Time, permalink string) (string, string, error) {
+	var original bytes.Buffer
+	if err := ical.NewEncoder(&original).Encode(object.Data); err != nil {
+		return "", "", errors.Wrap(err, "failed to encode the event")
+	}
+	rule, err := endSeriesBefore(object.Data, recurrenceID, loc, now)
+	if errors.Is(err, errFirstOccurrence) {
+		if err := updateEventObject(object.Data, in, now, permalink); err != nil {
+			return "", "", err
+		}
+		etag, err := s.client.putObject(ctx, s.homeSet, object.Path, object.Data, object.ETag)
+		return object.Path, etag, err
+	}
+	if err != nil {
+		return "", "", err
+	}
+	uid := model.NewId()
+	next, err := continueSeries(in, rule, uid, now, permalink)
+	if err != nil {
+		return "", "", err
+	}
+
+	etag, err := s.client.putObject(ctx, s.homeSet, object.Path, object.Data, object.ETag)
+	if err != nil {
+		return "", "", err
+	}
+	nextPath := object.Path[:strings.LastIndex(object.Path, "/")+1] + uid + ".ics"
+	nextETag, err := s.client.putObject(ctx, s.homeSet, nextPath, next, "")
+	if err != nil {
+		// Give the series its following occurrences back
+		if restored, decodeErr := ical.NewDecoder(&original).Decode(); decodeErr == nil && etag != "" {
+			if _, restoreErr := s.client.putObject(ctx, s.homeSet, object.Path, restored, etag); restoreErr != nil {
+				p.API.LogWarn("Failed to restore a split calendar series", "err", restoreErr.Error())
+			}
+		}
+		return "", "", err
+	}
+	return nextPath, nextETag, nil
+}
+
 // handleDeleteEvent deletes an event, or one occurrence of a repeating event (occurrence is its
-// recurrence ID, in milliseconds).
+// recurrence ID, in milliseconds), or that occurrence and the following ones (scope=following).
 func (p *Plugin) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 	s, err := p.openSession(userID(r))
 	if err != nil {
@@ -615,12 +717,12 @@ func (p *Plugin) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ms, err := strconv.ParseInt(occurrence, 10, 64)
+	loc, err := queryLocation(r)
 	if err != nil {
-		p.writeError(w, newAPIError(http.StatusBadRequest, "invalid occurrence"))
+		p.writeError(w, err)
 		return
 	}
-	loc, err := queryLocation(r)
+	recurrenceID, err := queryOccurrence(occurrence, loc)
 	if err != nil {
 		p.writeError(w, err)
 		return
@@ -634,7 +736,24 @@ func (p *Plugin) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, errChanged)
 		return
 	}
-	if err := excludeOccurrence(object.Data, time.UnixMilli(ms).In(loc), loc, time.Now()); err != nil {
+	switch r.URL.Query().Get("scope") {
+	case "", ScopeThis:
+		err = excludeOccurrence(object.Data, recurrenceID, loc, time.Now())
+	case ScopeFollowing:
+		_, err = endSeriesBefore(object.Data, recurrenceID, loc, time.Now())
+		if errors.Is(err, errFirstOccurrence) {
+			// From the first occurrence on, that's the whole series
+			err = s.client.deleteObject(r.Context(), s.homeSet, objectPath, object.ETag)
+			if err == nil {
+				p.eventsChanged(userID(r))
+				p.writeJSON(w, map[string]string{"status": "ok"})
+				return
+			}
+		}
+	default:
+		err = newAPIError(http.StatusBadRequest, "invalid scope")
+	}
+	if err != nil {
 		p.writeError(w, err)
 		return
 	}

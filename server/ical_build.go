@@ -261,14 +261,7 @@ func updateEventObject(cal *ical.Calendar, in *EventInput, now time.Time, permal
 	}
 
 	applyInput(ev, in, start, end, now, permalink)
-	sequence := 0
-	if prop := ev.Props.Get(ical.PropSequence); prop != nil {
-		sequence, _ = strconv.Atoi(prop.Value)
-	}
-	seq := ical.NewProp(ical.PropSequence)
-	seq.SetValueType(ical.ValueInt)
-	seq.Value = strconv.Itoa(sequence + 1)
-	ev.Props.Set(seq)
+	bumpSequence(ev)
 
 	if !in.AllDay {
 		ensureTimeZone(cal, loc, start.Year())
