@@ -177,3 +177,23 @@ END:VCALENDAR
 	assert.Equal(t, "18:00", time.UnixMilli(exchange.Start).In(tokyo).Format("15:04"), "Windows time zone names are understood")
 	assert.Equal(t, exchange.Start, exchange.End)
 }
+
+func TestAllDaySeriesUntilDate(t *testing.T) {
+	newYork := mustLoad(t, "America/New_York")
+	cal := decodeCalendar(t, `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//EN
+BEGIN:VEVENT
+UID:gym@example.com
+DTSTAMP:20260901T000000Z
+DTSTART;VALUE=DATE:20261001
+DTEND;VALUE=DATE:20261002
+RRULE:FREQ=DAILY;UNTIL=20261003
+SUMMARY:Gym
+END:VEVENT
+END:VCALENDAR
+`)
+	occurrences := expandObject("", "", "", cal, time.Date(2026, 9, 28, 0, 0, 0, 0, newYork), time.Date(2026, 10, 10, 0, 0, 0, 0, newYork), newYork)
+	require.Len(t, occurrences, 3, "the UNTIL day is included")
+	assert.Equal(t, "2026-10-03", occurrences[2].StartDate)
+}

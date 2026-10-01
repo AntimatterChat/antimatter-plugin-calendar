@@ -391,6 +391,10 @@ func expandObject(calendar, path, etag string, cal *ical.Calendar, from, to time
 			continue
 		}
 
+		if allDay {
+			untilEndOfDay(rule, ev.Props.Get(ical.PropRecurrenceRule).Value, loc)
+		}
+
 		kind := recurrenceKind(rule)
 		uid := textProp(ev, ical.PropUID)
 		for _, occurrenceStart := range recurrences(ev, rule, start, end.Sub(start), from, to, loc) {
@@ -410,6 +414,21 @@ func expandObject(calendar, path, etag string, cal *ical.Calendar, from, to time
 		}
 	}
 	return occurrences
+}
+
+// untilDate matches the UNTIL of a rule given as a date.
+var untilDate = regexp.MustCompile(`(?i)(?:^|;)UNTIL=(\d{8})(?:;|$)`)
+
+// untilEndOfDay makes the UNTIL date of the rule of an all-day series include that day in loc:
+// it's read as midnight UTC, which comes before the occurrences of that day west of UTC.
+func untilEndOfDay(rule *rrule.ROption, value string, loc *time.Location) {
+	m := untilDate.FindStringSubmatch(value)
+	if m == nil {
+		return
+	}
+	if day, err := time.ParseInLocation("20060102", m[1], loc); err == nil {
+		rule.Until = day.Add(24*time.Hour - time.Second)
+	}
 }
 
 // recurrences returns the starts of the recurrences of an event that overlap [from, to).
