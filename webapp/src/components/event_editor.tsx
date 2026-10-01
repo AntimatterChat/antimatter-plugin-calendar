@@ -9,7 +9,7 @@ import {getCurrentChannelId, getMyChannels} from 'mattermost-redux/selectors/ent
 
 import {am, own} from '../class_names';
 import * as client from '../client';
-import type {Calendar, Occurrence, Recurrence} from '../client';
+import type {Calendar, Occurrence, Recurrence, Scope} from '../client';
 import {dateInput, parseLocal} from '../utils';
 
 import {detailsForm, newEventForm, toInput, type Form} from './event_form';
@@ -33,8 +33,11 @@ function channelLabel(channel: {display_name: string; name: string; type: string
     return channel.type === 'O' || channel.type === 'P' ? `~${name}` : name;
 }
 
-// EventEditor creates, edits and deletes events. Repeating events are edited as a whole; one
-// occurrence can be deleted.
+const SCOPES: Scope[] = ['this', 'following', 'all'];
+
+// EventEditor creates, edits and deletes events. An occurrence of a repeating event is edited
+// alone, with the following ones, or with all of them: the occurrence and the series each have
+// their form, the scope picks which one shows.
 export default function EventEditor({calendars, occurrence, day, onDone, onCancel}: Props) {
     const {formatMessage} = useIntl();
     const myChannels = useSelector(getMyChannels);
@@ -43,7 +46,10 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
         filter((c) => c.delete_at === 0).
         sort((a, b) => channelLabel(a).localeCompare(channelLabel(b))), [myChannels]);
 
-    const [form, setForm] = useState<Form | null>(() => (occurrence ? null : newEventForm(calendars, day, currentChannelId)));
+    const repeating = Boolean(occurrence?.recurrence && occurrence.recurrence_id);
+    const [seriesForm, setSeriesForm] = useState<Form | null>(() => (occurrence ? null : newEventForm(calendars, day, currentChannelId)));
+    const [occurrenceForm, setOccurrenceForm] = useState<Form | null>(null);
+    const [scope, setScope] = useState<Scope>(repeating ? 'this' : 'all');
     const [etag, setETag] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -52,15 +58,24 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
         if (!occurrence) {
             return;
         }
-        client.getEvent(occurrence.path).then((details) => {
-            setForm(detailsForm(details, currentChannelId));
-            setETag(details.etag);
-        }).catch((err) => setError((err as Error).message));
-    }, [occurrence?.path]);
+        const loads: Array<Promise<unknown>> = [
+            client.getEvent(occurrence.path).then((details) => {
+                setSeriesForm(detailsForm(details, currentChannelId));
+                setETag(details.etag);
+            }),
+        ];
+        if (repeating) {
+            loads.push(client.getEvent(occurrence.path, occurrence.recurrence_id).then((details) => {
+                setOccurrenceForm(detailsForm(details, currentChannelId));
+            }));
+        }
+        Promise.all(loads).catch((err) => setError((err as Error).message));
+    }, [occurrence?.path, occurrence?.recurrence_id]);
 
+    const form = scope === 'all' ? seriesForm : occurrenceForm;
+    const setForm = scope === 'all' ? setSeriesForm : setOccurrenceForm;
     const calendar = calendars.find((c) => c.id === (form?.calendar || occurrence?.calendar));
     const readOnly = Boolean(calendar?.read_only);
-    const repeating = Boolean(occurrence?.recurrence && occurrence.recurrence_id);
 
     const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => (f ? {...f, [key]: value} : f));
 
@@ -82,20 +97,31 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
             return;
         }
         const input = toInput(form);
-        run(() => (occurrence ? client.updateEvent(occurrence.path, etag, input) : client.createEvent(input)));
+        run(() => (occurrence ? client.updateEvent(occurrence.path, etag, input, occurrence.recurrence_id, scope) : client.createEvent(input)));
     };
 
-    const remove = (only: boolean) => {
+    const remove = () => {
         if (!occurrence) {
             return;
         }
-        const confirmation = repeating && !only ? messages.deleteSeriesConfirm : messages.deleteConfirm;
+        let confirmation = messages.deleteConfirm;
+        if (repeating && scope === 'all') {
+            confirmation = messages.deleteSeriesConfirm;
+        } else if (repeating && scope === 'following') {
+            confirmation = messages.deleteFollowingConfirm;
+        }
 
         // eslint-disable-next-line no-alert
         if (!window.confirm(formatMessage(confirmation))) {
             return;
         }
-        run(() => client.deleteEvent(occurrence.path, etag, only ? occurrence.recurrence_id : 0));
+        run(() => client.deleteEvent(occurrence.path, etag, repeating ? occurrence.recurrence_id : 0, scope));
+    };
+
+    const scopeLabels: Record<Scope, string> = {
+        this: formatMessage(messages.scopeThis),
+        following: formatMessage(messages.scopeFollowing),
+        all: formatMessage(messages.scopeAll),
     };
 
     if (!form) {
@@ -146,7 +172,26 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
                 <h3 className={own('editor-title')}>{formatMessage(occurrence ? messages.editTitle : messages.newTitle)}</h3>
             </div>
             {readOnly && <div className={own('notice')}>{formatMessage(messages.readOnly)}</div>}
-            {repeating && !readOnly && <div className={own('notice')}>{formatMessage(messages.seriesNote)}</div>}
+            {repeating && !readOnly && (
+                <div
+                    className={am('seg')}
+                    role='radiogroup'
+                    aria-label={formatMessage(messages.scope)}
+                >
+                    {SCOPES.map((s) => (
+                        <button
+                            key={s}
+                            type='button'
+                            role='radio'
+                            aria-checked={scope === s}
+                            className={am({on: scope === s})}
+                            onClick={() => setScope(s)}
+                        >
+                            {scopeLabels[s]}
+                        </button>
+                    ))}
+                </div>
+            )}
             <fieldset
                 className={own('fieldset')}
                 disabled={readOnly || saving}
@@ -270,24 +315,26 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
                     )}
                 </div>
                 <div className={own('field-row')}>
-                    <label
-                        className={am('field')}
-                        htmlFor='amc-repeat'
-                    >
-                        <span>{formatMessage(messages.repeat)}</span>
-                        <select
-                            id='amc-repeat'
-                            value={form.recurrence}
-                            onChange={(e) => set('recurrence', e.target.value as Recurrence)}
+                    {scope !== 'this' && (
+                        <label
+                            className={am('field')}
+                            htmlFor='amc-repeat'
                         >
-                            <option value=''>{formatMessage(messages.repeatNone)}</option>
-                            <option value='daily'>{formatMessage(messages.repeatDaily)}</option>
-                            <option value='weekly'>{formatMessage(messages.repeatWeekly)}</option>
-                            <option value='monthly'>{formatMessage(messages.repeatMonthly)}</option>
-                            <option value='yearly'>{formatMessage(messages.repeatYearly)}</option>
-                            {form.recurrence === 'custom' && <option value='custom'>{formatMessage(messages.repeatCustom)}</option>}
-                        </select>
-                    </label>
+                            <span>{formatMessage(messages.repeat)}</span>
+                            <select
+                                id='amc-repeat'
+                                value={form.recurrence}
+                                onChange={(e) => set('recurrence', e.target.value as Recurrence)}
+                            >
+                                <option value=''>{formatMessage(messages.repeatNone)}</option>
+                                <option value='daily'>{formatMessage(messages.repeatDaily)}</option>
+                                <option value='weekly'>{formatMessage(messages.repeatWeekly)}</option>
+                                <option value='monthly'>{formatMessage(messages.repeatMonthly)}</option>
+                                <option value='yearly'>{formatMessage(messages.repeatYearly)}</option>
+                                {form.recurrence === 'custom' && <option value='custom'>{formatMessage(messages.repeatCustom)}</option>}
+                            </select>
+                        </label>
+                    )}
                     <label
                         className={am('field')}
                         htmlFor='amc-alarm'
@@ -395,24 +442,14 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
                         {formatMessage(messages.cancel)}
                     </button>
                     <span className={am('grow')}/>
-                    {occurrence && repeating && (
-                        <button
-                            type='button'
-                            className={am('btn')}
-                            disabled={saving}
-                            onClick={() => remove(true)}
-                        >
-                            {formatMessage(messages.deleteOne)}
-                        </button>
-                    )}
                     {occurrence && (
                         <button
                             type='button'
                             className={am('btn', 'danger')}
                             disabled={saving}
-                            onClick={() => remove(false)}
+                            onClick={remove}
                         >
-                            {formatMessage(repeating ? messages.deleteAll : messages.delete)}
+                            {formatMessage(messages.delete)}
                         </button>
                     )}
                 </div>

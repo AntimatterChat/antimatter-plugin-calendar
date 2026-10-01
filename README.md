@@ -15,8 +15,10 @@ their own calendar server over CalDAV, and gets reminders from the Calendar bot 
 - **Agenda and week views** of all the user's calendars, in their colors. Repeating events are
   expanded (with their exceptions and moved occurrences), across daylight saving time changes.
 - **Create, edit and delete events**: title, calendar, times or all day, a simple repeat rule,
-  a reminder, location, description. Repeating events are edited as a whole; one occurrence can be
-  deleted. Edits are conditional on the event's ETag, so changes made elsewhere aren't overwritten.
+  a reminder, location, description. An occurrence of a repeating event is edited or deleted
+  alone (an override with a `RECURRENCE-ID`, or an `EXDATE`), with the following ones (the series
+  ends before it and a new one starts with it), or with the whole series. Edits are conditional
+  on the event's ETag, so changes made elsewhere aren't overwritten.
 - **Meet in Antimatter.** An event can be linked to a channel, a voice channel or a call: its row
   then has a Join (voice channel), Start call / Join call or Open button, which goes through the
   Voice channels and Calls plugins when they're installed. The link is stored in the event as

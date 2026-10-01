@@ -75,7 +75,14 @@ export type EventDetails = {
     recurrence: Recurrence;
     alarm: number | null;
     link?: EventLink;
+
+    // The occurrence the details are of, for an occurrence of a repeating event
+    recurrence_id?: number;
 };
+
+// Scope is what an edit of an occurrence of a repeating event applies to: the occurrence alone,
+// the occurrence and the following ones, or every occurrence.
+export type Scope = 'this' | 'following' | 'all';
 
 export type EventInput = {
     calendar: string;
@@ -167,23 +174,31 @@ export function getEvents(from: Date, to: Date) {
     );
 }
 
-export function getEvent(path: string) {
-    return request<EventDetails>('GET', `/event?${query({path, tz: timeZone()})}`);
+// getEvent returns an event, or one occurrence of a repeating event.
+export function getEvent(path: string, occurrence?: number) {
+    return request<EventDetails>('GET', `/event?${query({path, tz: timeZone(), occurrence})}`);
 }
 
 export function createEvent(input: EventInput) {
     return request<{path: string; etag: string}>('POST', '/events', input);
 }
 
-export function updateEvent(path: string, etag: string, input: EventInput) {
-    return request<{path: string; etag: string}>('PUT', `/event?${query({path, etag})}`, input);
+// occurrenceParams return the parameters that make a request act on an occurrence of a
+// repeating event, and the following ones with the scope 'following'.
+function occurrenceParams(occurrence: number, scope: Scope) {
+    if (!occurrence || scope === 'all') {
+        return {};
+    }
+    return {occurrence, scope, tz: timeZone()};
 }
 
-// deleteEvent deletes an event, or only one occurrence of a repeating event.
-export function deleteEvent(path: string, etag: string, occurrence = 0) {
-    const params: Record<string, string | number> = {path, etag, tz: timeZone()};
-    if (occurrence) {
-        params.occurrence = occurrence;
-    }
-    return request<unknown>('DELETE', `/event?${query(params)}`);
+// updateEvent edits an event, or an occurrence of a repeating event and maybe the following ones.
+export function updateEvent(path: string, etag: string, input: EventInput, occurrence = 0, scope: Scope = 'all') {
+    return request<{path: string; etag: string}>('PUT', `/event?${query({path, etag, ...occurrenceParams(occurrence, scope)})}`, input);
+}
+
+// deleteEvent deletes an event, or an occurrence of a repeating event and maybe the following
+// ones.
+export function deleteEvent(path: string, etag: string, occurrence = 0, scope: Scope = 'this') {
+    return request<unknown>('DELETE', `/event?${query({path, etag, tz: timeZone(), ...occurrenceParams(occurrence, scope)})}`);
 }
