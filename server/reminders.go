@@ -150,9 +150,11 @@ func (s *reminderService) run(now time.Time) {
 }
 
 // userLocation returns the time zone of a user.
-func (s *reminderService) userLocation(userID string) *time.Location {
-	loc, _ := s.userSettings(userID)
-	return loc
+func userLocation(user *model.User) *time.Location {
+	if loc, err := time.LoadLocation(user.GetPreferredTimezone()); err == nil {
+		return loc
+	}
+	return time.UTC
 }
 
 // userSettings returns the time zone and the locale of a user.
@@ -161,14 +163,19 @@ func (s *reminderService) userSettings(userID string) (*time.Location, string) {
 	if appErr != nil {
 		return time.UTC, ""
 	}
-	if loc, err := time.LoadLocation(user.GetPreferredTimezone()); err == nil {
-		return loc, user.Locale
-	}
-	return time.UTC, user.Locale
+	return userLocation(user), user.Locale
 }
 
 // fetch reads the upcoming reminders of a user.
 func (s *reminderService) fetch(userID string, now time.Time) ([]reminder, error) {
+	user, appErr := s.p.API.GetUser(userID)
+	if appErr != nil {
+		return nil, errors.Wrap(appErr, "failed to get the user")
+	}
+	if user.DeleteAt != 0 {
+		// Deactivated users get no reminders, and their calendars aren't read
+		return nil, nil
+	}
 	session, err := s.p.openSession(userID)
 	if err != nil {
 		return nil, err
@@ -184,7 +191,7 @@ func (s *reminderService) fetch(userID string, now time.Time) ([]reminder, error
 	for _, calendar := range calendars {
 		ids = append(ids, calendar.ID)
 	}
-	occurrences, _ := session.listOccurrences(ctx, ids, now.Add(-reminderGrace), now.Add(reminderHorizon), s.userLocation(userID))
+	occurrences, _ := session.listOccurrences(ctx, ids, now.Add(-reminderGrace), now.Add(reminderHorizon), userLocation(user))
 
 	var upcoming []reminder
 	for _, r := range remindersOf(occurrences, session.account.RemindMinutes) {

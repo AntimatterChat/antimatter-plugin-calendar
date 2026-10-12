@@ -142,6 +142,16 @@ func TestRemindersRun(t *testing.T) {
 	e.p.reminders.invalidate(e.userID)
 	e.p.reminders.run(time.Date(2026, 10, 5, 10, 47, 0, 0, paris))
 
+	// No reminders for deactivated users
+	w = e.request(t, http.MethodPost, "/api/v1/events", EventInput{
+		Calendar: testWork, Summary: "Beam time", Start: "2026-10-05T14:00:00+02:00", End: "2026-10-05T15:00:00+02:00",
+		TimeZone: "Europe/Paris", Alarm: &alarm,
+	})
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	user.DeleteAt = model.GetMillis()
+	e.p.reminders.run(time.Date(2026, 10, 5, 13, 45, 0, 0, paris))
+	user.DeleteAt = 0
+
 	// No reminders when they're turned off
 	e.p.configuration = &configuration{AllowPrivateNetworks: true, AllowInsecureConnections: true}
 	e.p.reminders.invalidate(e.userID)
