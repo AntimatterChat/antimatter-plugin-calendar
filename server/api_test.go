@@ -323,3 +323,19 @@ func TestAPIEditOccurrences(t *testing.T) {
 	w = e.request(t, http.MethodPut, target(week(1), "everything"), EventInput{Summary: "x", Start: "2026-10-12T15:00:00+02:00", End: "2026-10-12T16:00:00+02:00"})
 	assert.Equal(t, http.StatusNotFound, w.Code, "the object of the second series is gone")
 }
+
+func TestChannelLinkDirect(t *testing.T) {
+	e := newTestEnv(t)
+	other := &model.User{Id: model.NewId(), Username: "grace", FirstName: "Grace", LastName: "Hopper"}
+	dm := &model.Channel{Id: model.NewId(), Name: model.GetDMNameFromIds(e.userID, other.Id), Type: model.ChannelTypeDirect}
+	e.api.On("HasPermissionToChannel", e.userID, dm.Id, model.PermissionReadChannel).Return(true)
+	e.api.On("GetChannel", dm.Id).Return(dm, nil)
+	e.api.On("GetUser", other.Id).Return(other, nil)
+	nameFormat := model.ShowFullName
+	e.api.On("GetConfig").Return(&model.Config{TeamSettings: model.TeamSettings{TeammateNameDisplay: &nameFormat}})
+
+	link := e.p.channelLink(e.userID, dm.Id)
+	require.NotNil(t, link)
+	assert.Equal(t, "Grace Hopper", link.DisplayName)
+	assert.Equal(t, string(model.ChannelTypeDirect), link.ChannelType)
+}

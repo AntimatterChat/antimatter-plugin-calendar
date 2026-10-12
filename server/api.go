@@ -401,12 +401,30 @@ func (p *Plugin) channelLink(userID, channelID string) *EventLink {
 		return nil
 	}
 	link := &EventLink{ChannelID: channel.Id, ChannelName: channel.Name, DisplayName: channel.DisplayName, ChannelType: string(channel.Type)}
+	if channel.Type == model.ChannelTypeDirect {
+		// Direct channels have no display name of their own
+		link.DisplayName = p.directChannelName(userID, channel)
+	}
 	if channel.TeamId != "" {
 		if team, appErr := p.API.GetTeam(channel.TeamId); appErr == nil {
 			link.TeamName = team.Name
 		}
 	}
 	return link
+}
+
+// directChannelName returns the name of a direct channel for a user: the other user's name, as
+// the server shows names.
+func (p *Plugin) directChannelName(userID string, channel *model.Channel) string {
+	other, appErr := p.API.GetUser(channel.GetOtherUserIdForDM(userID))
+	if appErr != nil {
+		return ""
+	}
+	format := model.ShowUsername
+	if cfg := p.API.GetConfig(); cfg != nil && cfg.TeamSettings.TeammateNameDisplay != nil {
+		format = *cfg.TeamSettings.TeammateNameDisplay
+	}
+	return other.GetDisplayName(format)
 }
 
 // eventsChanged makes the reminders read the events of a user again.
