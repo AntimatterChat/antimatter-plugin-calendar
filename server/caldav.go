@@ -15,7 +15,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/emersion/go-ical"
@@ -72,10 +71,21 @@ type davClient struct {
 	username      string
 	password      string
 	allowInsecure bool
+}
 
-	// lastStatus is the status of the last failed response, which go-webdav's errors hide.
-	mu         sync.Mutex
-	lastStatus int
+// failedStatus records the status of the last failed response to the requests of one operation,
+// which go-webdav's errors hide. It travels in the requests' context, as one client serves
+// several operations at once (the calendars are read in parallel).
+type failedStatus struct {
+	code int
+}
+
+type failedStatusKey struct{}
+
+// recordFailedStatus returns a context whose requests record their failed status.
+func recordFailedStatus(ctx context.Context) (context.Context, *failedStatus) {
+	status := &failedStatus{}
+	return context.WithValue(ctx, failedStatusKey{}, status), status
 }
 
 func newDAVClient(username, password string, opts davOptions) *davClient {
@@ -121,16 +131,14 @@ func (c *davClient) Do(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode >= 400 {
-		c.mu.Lock()
-		c.lastStatus = resp.StatusCode
-		c.mu.Unlock()
+	if status, ok := req.Context().Value(failedStatusKey{}).(*failedStatus); ok && resp.StatusCode >= 400 {
+		status.code = resp.StatusCode
 	}
 	return resp, nil
 }
 
-// wrap turns the error of a request into one to show the user.
-func (c *davClient) wrap(err error, what string) error {
+// wrap turns the error of a go-webdav operation into one to show the user.
+func wrap(err error, status *failedStatus, what string) error {
 	if err == nil {
 		return nil
 	}
@@ -138,11 +146,7 @@ func (c *davClient) wrap(err error, what string) error {
 	if errors.As(err, &apiErr) {
 		return apiErr
 	}
-	c.mu.Lock()
-	status := c.lastStatus
-	c.lastStatus = 0
-	c.mu.Unlock()
-	return statusError(status, err, what)
+	return statusError(status.code, err, what)
 }
 
 func statusError(status int, err error, what string) error {
@@ -436,6 +440,7 @@ func (c *davClient) queryEvents(ctx context.Context, homeSet *url.URL, calendar 
 	if err != nil {
 		return nil, err
 	}
+	ctx, status := recordFailedStatus(ctx)
 	objects, err := client.QueryCalendar(ctx, calendar, &caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{Name: ical.CompCalendar, AllProps: true, AllComps: true},
 		CompFilter: caldav.CompFilter{
@@ -443,7 +448,7 @@ func (c *davClient) queryEvents(ctx context.Context, homeSet *url.URL, calendar 
 			Comps: []caldav.CompFilter{{Name: ical.CompEvent, Start: from.UTC(), End: to.UTC()}},
 		},
 	})
-	return objects, c.wrap(err, "read the events")
+	return objects, wrap(err, status, "read the events")
 }
 
 // getObject returns a calendar object.
@@ -452,8 +457,9 @@ func (c *davClient) getObject(ctx context.Context, homeSet *url.URL, objectPath 
 	if err != nil {
 		return nil, err
 	}
+	ctx, status := recordFailedStatus(ctx)
 	object, err := client.GetCalendarObject(ctx, objectPath)
-	return object, c.wrap(err, "read the event")
+	return object, wrap(err, status, "read the event")
 }
 
 // ETags are kept unquoted, as go-webdav reads them, and quoted in conditional requests.
