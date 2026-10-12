@@ -2,7 +2,7 @@
 // See LICENSE.txt for license information.
 
 import type {Calendar, Occurrence} from './client';
-import {PALETTE, addDays, calendarColor, dateInput, eventsOn, isNow, occursOn, parseLocal, startOfWeek, timeInput} from './utils';
+import {PALETTE, addDays, calendarColor, dateInput, eventsOn, isNow, occursOn, parseLocal, sameServer, startOfWeek, timeInput} from './utils';
 
 function occurrence(fields: Partial<Occurrence>): Occurrence {
     return {id: 'x', calendar: '/c/', path: '/c/x.ics', etag: '', uid: 'x', summary: 'x', all_day: false, start: 0, end: 0, ...fields};
@@ -57,5 +57,14 @@ describe('occurrences', () => {
         const calendars: Calendar[] = [{id: '/a/', name: 'A', read_only: false}, {id: '/b/', name: 'B', read_only: false, color: '#123456'}];
         expect(calendarColor(calendars, '/a/')).toBe(PALETTE[0]);
         expect(calendarColor(calendars, '/b/')).toBe('#123456');
+    });
+});
+
+describe('servers', () => {
+    test('same server', () => {
+        expect(sameServer('cloud.example.com', 'https://cloud.example.com/remote.php/dav')).toBe(true);
+        expect(sameServer('https://Cloud.example.com/dav/', 'https://cloud.example.com')).toBe(true);
+        expect(sameServer('https://cloud.example.com', 'https://evil.example.com')).toBe(false);
+        expect(sameServer('http://cloud.example.com', 'https://cloud.example.com')).toBe(false);
     });
 });

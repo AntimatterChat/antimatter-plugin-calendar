@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,6 +118,16 @@ func TestAPIAccount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "secret", account.Password)
 	assert.Equal(t, 0, account.RemindMinutes)
+
+	// Another server or user needs the password again
+	for _, view := range []accountView{
+		{URL: strings.Replace(e.server.URL, "127.0.0.1", "localhost", 1), Username: "ada"},
+		{URL: e.server.URL, Username: "grace"},
+	} {
+		w = e.request(t, http.MethodPut, "/api/v1/account", accountRequest{accountView: view})
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "a password is required")
+	}
 
 	w = e.request(t, http.MethodGet, "/api/v1/calendars", nil)
 	require.Equal(t, http.StatusOK, w.Code)

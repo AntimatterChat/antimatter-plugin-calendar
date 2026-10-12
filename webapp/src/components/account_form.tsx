@@ -7,6 +7,7 @@ import {useIntl} from 'react-intl';
 import {am, own} from '../class_names';
 import * as client from '../client';
 import type {Account} from '../client';
+import {sameServer} from '../utils';
 
 import {confirmDialog} from './fusion/confirm_dialog';
 import {messages} from './messages';
@@ -30,6 +31,9 @@ export default function AccountForm({account, remindersEnabled, onSaved, onCance
     const [remind, setRemind] = useState(account ? account.remind_minutes : 10);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+
+    // The saved password is kept when the password is left empty, for the same user on the same server
+    const keepsPassword = account !== null && username.trim() === account.username && sameServer(url, account.url);
 
     let submitLabel = account ? messages.save : messages.connect;
     if (saving) {
@@ -118,12 +122,12 @@ export default function AccountForm({account, remindersEnabled, onSaved, onCance
                     id='amc-password'
                     type='password'
                     className={own('input')}
-                    required={!account}
+                    required={!keepsPassword}
                     value={password}
                     autoComplete='new-password'
                     onChange={(e) => setPassword(e.target.value)}
                 />
-                {account && <small>{formatMessage(messages.passwordKeep)}</small>}
+                {keepsPassword && <small>{formatMessage(messages.passwordKeep)}</small>}
             </label>
             <label
                 className={am('field')}

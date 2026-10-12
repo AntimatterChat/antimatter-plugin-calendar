@@ -210,7 +210,7 @@ func (p *Plugin) handleSaveAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	account := &Account{URL: strings.TrimSpace(req.URL), Username: strings.TrimSpace(req.Username), Password: req.Password, RemindMinutes: req.RemindMinutes}
-	if account.Password == "" && existing != nil {
+	if account.Password == "" && existing != nil && sameServer(existing, account) {
 		account.Password = existing.Password
 	}
 	if err := account.Validate(); err != nil {
@@ -239,6 +239,16 @@ func (p *Plugin) handleSaveAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	p.eventsChanged(userID(r))
 	p.writeJSON(w, map[string]any{"account": newAccountView(account)})
+}
+
+// sameServer returns whether two accounts are the same user on the same calendar server. The
+// saved password is only kept for that: otherwise whoever can change the settings (say, with a
+// stolen session) could have it sent to a server of their own.
+func sameServer(a, b *Account) bool {
+	urlA, errA := normalizeURL(a.URL)
+	urlB, errB := normalizeURL(b.URL)
+	return errA == nil && errB == nil && a.Username == b.Username &&
+		urlA.Scheme == urlB.Scheme && strings.EqualFold(urlA.Host, urlB.Host)
 }
 
 func (p *Plugin) handleDeleteAccount(w http.ResponseWriter, r *http.Request) {

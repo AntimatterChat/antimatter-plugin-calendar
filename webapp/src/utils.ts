@@ -14,6 +14,24 @@ export function calendarColor(calendars: Calendar[], id: string): string {
     return calendars[index].color || PALETTE[index % PALETTE.length];
 }
 
+// serverOf returns the scheme and host of a calendar server URL, which may be entered without a
+// scheme (the server adds https then).
+function serverOf(url: string): string {
+    const raw = url.trim();
+    try {
+        const parsed = new URL(raw.includes('://') ? raw : `https://${raw}`);
+        return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+        return raw;
+    }
+}
+
+// sameServer returns whether two calendar server URLs are on the same server: the server only
+// keeps the saved password for that.
+export function sameServer(a: string, b: string): boolean {
+    return serverOf(a) === serverOf(b);
+}
+
 export function startOfDay(date: Date): Date {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
