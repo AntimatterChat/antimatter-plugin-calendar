@@ -5,6 +5,7 @@ package main
 
 import (
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -159,7 +160,7 @@ func endSeriesBefore(cal *ical.Calendar, recurrenceID time.Time, loc *time.Locat
 	}
 
 	parts := ruleWithout(ruleProp.Value, "COUNT", "UNTIL")
-	remaining := strings.Join(parts, ";")
+	remaining := slices.Clone(parts)
 	switch {
 	case rule.Count > 0:
 		rule.Dtstart = start
@@ -168,11 +169,11 @@ func endSeriesBefore(cal *ical.Calendar, recurrenceID time.Time, loc *time.Locat
 			return "", newAPIError(http.StatusUnprocessableEntity, "the repeat rule of this event can't be read")
 		}
 		left := rule.Count - len(r.Between(start, recurrenceID.Add(-time.Second), true))
-		remaining += ";COUNT=" + strconv.Itoa(max(left, 1))
+		remaining = append(remaining, "COUNT="+strconv.Itoa(max(left, 1)))
 	case !rule.Until.IsZero():
 		for part := range strings.SplitSeq(ruleProp.Value, ";") {
 			if name, _, _ := strings.Cut(part, "="); strings.EqualFold(name, "UNTIL") {
-				remaining += ";" + part
+				remaining = append(remaining, part)
 			}
 		}
 	}
@@ -202,7 +203,7 @@ func endSeriesBefore(cal *ical.Calendar, recurrenceID time.Time, loc *time.Locat
 	stamp := ical.NewProp(ical.PropDateTimeStamp)
 	stamp.SetDateTime(now.UTC())
 	master.Props.Set(stamp)
-	return remaining, nil
+	return strings.Join(remaining, ";"), nil
 }
 
 // continueSeries returns the object of a new series that continues a recurring event from one of

@@ -57,7 +57,9 @@ func TestBuildEvent(t *testing.T) {
 	require.NoError(t, edit.validate())
 	require.NoError(t, updateEventObject(cal, edit, now.Add(time.Hour), ""))
 	data = encodeCalendar(t, cal)
-	data = data[strings.Index(data, "BEGIN:VEVENT"):]
+	event := strings.Index(data, "BEGIN:VEVENT")
+	require.GreaterOrEqual(t, event, 0)
+	data = data[event:]
 	assert.Contains(t, data, "DTSTART;VALUE=DATE:20261006\r\n")
 	assert.Contains(t, data, "SEQUENCE:1\r\n")
 	assert.NotContains(t, data, "RRULE")

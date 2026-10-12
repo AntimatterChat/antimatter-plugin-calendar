@@ -36,7 +36,7 @@ func TestIsPrivateIP(t *testing.T) {
 func TestDialerRefusesPrivateAddresses(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	_, err = newDialer(false).Dial("tcp", listener.Addr().String())
 	require.Error(t, err)
@@ -44,5 +44,5 @@ func TestDialerRefusesPrivateAddresses(t *testing.T) {
 
 	conn, err := newDialer(true).Dial("tcp", listener.Addr().String())
 	require.NoError(t, err)
-	conn.Close()
+	_ = conn.Close()
 }

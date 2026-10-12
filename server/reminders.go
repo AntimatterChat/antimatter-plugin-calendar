@@ -116,9 +116,7 @@ func (s *reminderService) run(now time.Time) {
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			slots <- struct{}{}
 			defer func() { <-slots }()
 
@@ -131,7 +129,7 @@ func (s *reminderService) run(now time.Time) {
 			s.users[userID] = &userReminders{fetchedAt: now, reminders: reminders}
 			s.mu.Unlock()
 			s.sendDue(userID, reminders, now)
-		}()
+		})
 	}
 	wg.Wait()
 

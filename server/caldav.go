@@ -216,7 +216,7 @@ func (c *davClient) propfind(ctx context.Context, target string, depth string, b
 	if err != nil {
 		return nil, statusError(0, err, "connect")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusMultiStatus {
 		return nil, statusError(resp.StatusCode, errors.Errorf("unexpected response %s", resp.Status), "read the calendars")
 	}
@@ -300,7 +300,7 @@ func (c *davClient) wellKnownTarget(ctx context.Context, base *url.URL) (*url.UR
 	if err != nil {
 		return nil, err
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		if location := resp.Header.Get("Location"); location != "" {
 			return resolve(wellKnown, location)
@@ -502,7 +502,7 @@ func (c *davClient) putObject(ctx context.Context, homeSet *url.URL, objectPath 
 	if err != nil {
 		return "", statusError(0, err, "save the event")
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		return "", statusError(resp.StatusCode, errors.Errorf("unexpected response %s", resp.Status), "save the event")
 	}
@@ -522,7 +522,7 @@ func (c *davClient) deleteObject(ctx context.Context, homeSet *url.URL, objectPa
 	if err != nil {
 		return statusError(0, err, "delete the event")
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		return statusError(resp.StatusCode, errors.Errorf("unexpected response %s", resp.Status), "delete the event")
 	}

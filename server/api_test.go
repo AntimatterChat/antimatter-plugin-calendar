@@ -260,12 +260,12 @@ func TestAPIEditOccurrences(t *testing.T) {
 	list := func() []string {
 		t.Helper()
 		query := url.Values{"from": {"2026-10-05T00:00:00+02:00"}, "to": {"2026-11-02T00:00:00+01:00"}, "tz": {"Europe/Paris"}}
-		w := e.request(t, http.MethodGet, "/api/v1/events?"+query.Encode(), nil)
-		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		listed := e.request(t, http.MethodGet, "/api/v1/events?"+query.Encode(), nil)
+		require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
 		var result []string
 		for _, o := range decode[struct {
 			Events []Occurrence `json:"events"`
-		}](t, w).Events {
+		}](t, listed).Events {
 			result = append(result, time.UnixMilli(o.Start).In(paris).Format("01-02 15:04")+" "+o.Summary)
 		}
 		return result

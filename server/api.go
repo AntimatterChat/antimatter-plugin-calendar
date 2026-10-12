@@ -215,7 +215,7 @@ func (p *Plugin) handleSaveAccount(w http.ResponseWriter, r *http.Request) {
 	if account.Password == "" && existing != nil && sameServer(existing, account) {
 		account.Password = existing.Password
 	}
-	if err := account.Validate(); err != nil {
+	if err = account.Validate(); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -298,9 +298,7 @@ func (s *session) listOccurrences(ctx context.Context, calendars []string, from,
 	slots := make(chan struct{}, maxConcurrentQueries)
 
 	for _, calendar := range calendars {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			slots <- struct{}{}
 			defer func() { <-slots }()
 
@@ -316,7 +314,7 @@ func (s *session) listOccurrences(ctx context.Context, calendars []string, from,
 					occurrences = append(occurrences, expandObject(calendar, objects[i].Path, objects[i].ETag, objects[i].Data, from, to, loc)...)
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	sortOccurrences(occurrences)
@@ -462,7 +460,7 @@ func (p *Plugin) handleCreateEvent(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, err)
 		return
 	}
-	if err := s.validCalendar(in.Calendar); err != nil {
+	if err = s.validCalendar(in.Calendar); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -500,7 +498,7 @@ func (p *Plugin) handleGetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	objectPath := r.URL.Query().Get("path")
-	if err := s.validObjectPath(objectPath); err != nil {
+	if err = s.validObjectPath(objectPath); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -592,7 +590,7 @@ func (p *Plugin) handleUpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	objectPath := r.URL.Query().Get("path")
-	if err := s.validObjectPath(objectPath); err != nil {
+	if err = s.validObjectPath(objectPath); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -614,12 +612,11 @@ func (p *Plugin) handleUpdateEvent(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	if occurrence := r.URL.Query().Get("occurrence"); occurrence != "" {
-		loc, err := queryLocation(r)
-		if err != nil {
-			p.writeError(w, err)
-			return
+		var loc *time.Location
+		var recurrenceID time.Time
+		if loc, err = queryLocation(r); err == nil {
+			recurrenceID, err = queryOccurrence(occurrence, loc)
 		}
-		recurrenceID, err := queryOccurrence(occurrence, loc)
 		if err != nil {
 			p.writeError(w, err)
 			return
@@ -642,7 +639,7 @@ func (p *Plugin) handleUpdateEvent(w http.ResponseWriter, r *http.Request) {
 			p.writeError(w, err)
 			return
 		}
-	} else if err := updateEventObject(object.Data, &in, now, permalink); err != nil {
+	} else if err = updateEventObject(object.Data, &in, now, permalink); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -674,11 +671,11 @@ func (p *Plugin) editFollowing(ctx context.Context, s *session, object *caldav.C
 	}
 	rule, err := endSeriesBefore(object.Data, recurrenceID, loc, now)
 	if errors.Is(err, errFirstOccurrence) {
-		if err := updateEventObject(object.Data, in, now, permalink); err != nil {
+		if err = updateEventObject(object.Data, in, now, permalink); err != nil {
 			return "", "", err
 		}
-		etag, err := s.client.putObject(ctx, s.homeSet, object.Path, object.Data, object.ETag)
-		return object.Path, etag, err
+		etag, putErr := s.client.putObject(ctx, s.homeSet, object.Path, object.Data, object.ETag)
+		return object.Path, etag, putErr
 	}
 	if err != nil {
 		return "", "", err
@@ -716,7 +713,7 @@ func (p *Plugin) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	objectPath := r.URL.Query().Get("path")
-	if err := s.validObjectPath(objectPath); err != nil {
+	if err = s.validObjectPath(objectPath); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -724,7 +721,7 @@ func (p *Plugin) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
 
 	occurrence := r.URL.Query().Get("occurrence")
 	if occurrence == "" {
-		if err := s.client.deleteObject(r.Context(), s.homeSet, objectPath, etag); err != nil {
+		if err = s.client.deleteObject(r.Context(), s.homeSet, objectPath, etag); err != nil {
 			p.writeError(w, err)
 			return
 		}
