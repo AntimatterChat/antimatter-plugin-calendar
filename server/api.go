@@ -24,6 +24,8 @@ import (
 const (
 	requestBodyMaxSizeBytes = 256 * 1024
 	maxConcurrentQueries    = 4
+	// maxListedCalendars bounds the calendars one request reads the events of.
+	maxListedCalendars = 100
 )
 
 // ClientConfig is the part of the plugin configuration clients need.
@@ -346,6 +348,10 @@ func (p *Plugin) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	var calendars []string
 	if list := r.URL.Query().Get("calendars"); list != "" {
 		calendars = strings.Split(list, ",")
+		if len(calendars) > maxListedCalendars {
+			p.writeError(w, newAPIError(http.StatusBadRequest, "too many calendars"))
+			return
+		}
 		for _, calendar := range calendars {
 			if err := s.validCalendar(calendar); err != nil {
 				p.writeError(w, err)
