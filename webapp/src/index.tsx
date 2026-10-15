@@ -9,6 +9,7 @@ import {Client4} from 'mattermost-redux/client';
 import CalendarPanel from './components/calendar_panel';
 import manifest from './manifest';
 import type {PluginClass, PluginRegistry, PluginStore} from './types/host';
+import {registerTranslations} from './translations';
 
 import './styles.css';
 
@@ -24,6 +25,8 @@ function calendarIconURL(): string {
 
 export default class Plugin implements PluginClass {
     public initialize(registry: PluginRegistry, store: PluginStore) {
+        registerTranslations(registry);
+
         if (window.basename) {
             Client4.setUrl(window.basename);
         }
