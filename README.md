@@ -79,6 +79,26 @@ See the [user guide](https://antimatter.chat/docs/users/apps.html#calendar) and 
 [admin guide](https://antimatter.chat/docs/admins/apps.html#mail-calendar) on
 [antimatter.chat/docs](https://antimatter.chat/docs/).
 
+## Releases
+
+Pushing a `v*` tag builds the app and publishes it as a
+[GitHub release](https://github.com/AntimatterChat/antimatter-plugin-calendar/releases) ([release workflow](.github/workflows/release.yml),
+using the organisation's shared
+[app release workflow](https://github.com/AntimatterChat/.github/blob/main/.github/workflows/app-release.yml)).
+The version is the tag without its `v`. Tags with a `-`, such as `v1.2.0-rc.1`, are published as prereleases. Each release has:
+
+- `com.antimatterchat.calendar-<version>.tar.gz`: the app bundle, with the server for Linux (amd64, arm64), macOS (amd64, arm64) and Windows (amd64)
+- `com.antimatterchat.calendar-<version>.tar.gz.sig`: its detached signature with the Antimatter plugin signing key
+- `SHA256SUMS`: the checksums of the release files
+
+Install the bundle with **Upload Plugin** in **System Console > Plugins > Plugin Management** or
+`amctl plugin install-url <bundle URL>` (both need `AM_PLUGINSETTINGS_ENABLEUPLOADS=true`), see
+[Installing other apps](https://antimatter.chat/docs/admins/apps.html). A release without `.sig`
+files is unsigned (its notes say so): a server with Require Plugin Signature
+(`PluginSettings.RequirePluginSignature`) on refuses it. Running the workflow by hand (*Actions* → *Release* → *Run workflow*)
+builds the bundle as a workflow artifact, and as a draft prerelease if you tick the box; builds
+of untagged commits are versioned after the latest tag and the commit.
+
 ## Feedback and support
 
 Found a bug in the Calendar plugin, or missing a feature? Please [open an
