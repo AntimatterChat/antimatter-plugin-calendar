@@ -1,0 +1,15 @@
+/* Copyright (c) 2026-present Antimatter contributors. See LICENSE.txt for license information. */
+
+/* The Fusion helpers shared by Antimatter's default apps (the same file in each app). Fusion-only: every rule is
+   scoped to Fusion's app and layer, and uses its tokens. */
+
+/* Empty states (empty_state.tsx), on top of Fusion's .am-empty: centred, a small icon in the app's colour. */
+:is(.am-app, .am-layer) .amfx-empty { display: grid; justify-items: center; align-content: center; gap: 6px; padding: 28px 18px; color: var(--am-muted); font: 14px/1.45 var(--am-font-ui); text-align: center; }
+:is(.am-app, .am-layer) .amfx-empty-ic { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px; border-radius: 12px; background: color-mix(in srgb, var(--am-cc, var(--am-matter)) 16%, transparent); color: var(--am-cc, var(--am-matter)); }
+:is(.am-app, .am-layer) .amfx-empty-ic .am-ic { width: 22px; height: 22px; }
+:is(.am-app, .am-layer) .amfx-empty.amfx-danger .amfx-empty-ic { background: color-mix(in srgb, var(--am-danger) 14%, transparent); color: var(--am-danger); }
+:is(.am-app, .am-layer) .amfx-empty-title { color: var(--am-text); font: 600 15px/1.35 var(--am-font-display); }
+:is(.am-app, .am-layer) .amfx-empty.amfx-danger .amfx-empty-title { color: var(--am-danger); }
+:is(.am-app, .am-layer) .amfx-empty-text { max-width: 300px; margin: 0; font-size: 13.5px; }
+:is(.am-app, .am-layer) .amfx-empty .am-btn { margin-top: 8px; }
+:is(.am-app, .am-layer) .amfx-empty.amfx-busy { padding: 22px 18px; color: var(--am-faint, var(--am-muted)); font-size: 13.5px; }
