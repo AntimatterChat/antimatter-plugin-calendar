@@ -11,6 +11,10 @@ import CalendarPanel, {APP_COLOR} from './calendar_panel';
 
 jest.mock('react-redux', () => ({useSelector: (selector: (state: object) => unknown) => selector({})}));
 jest.mock('mattermost-redux/selectors/entities/teams', () => ({getCurrentTeam: () => null}));
+jest.mock('mattermost-redux/selectors/entities/channels', () => ({
+    getMyChannels: () => [],
+    getCurrentChannelId: () => '',
+}));
 jest.mock('../client', () => ({
     ...jest.requireActual('../client'),
     getAccount: jest.fn(),
