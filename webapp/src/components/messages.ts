@@ -24,7 +24,8 @@ export const messages = defineMessages({
     connect: {id: 'calendar.settings.connect', defaultMessage: 'Connect'},
     connecting: {id: 'calendar.settings.connecting', defaultMessage: 'Looking for your calendars…'},
     disconnect: {id: 'calendar.settings.disconnect', defaultMessage: 'Disconnect'},
-    disconnectConfirm: {id: 'calendar.settings.disconnect.confirm', defaultMessage: 'Disconnect your calendar from Antimatter? Your events stay on your calendar server.'},
+    disconnectTitle: {id: 'calendar.settings.disconnect.title', defaultMessage: 'Disconnect your calendar?', description: 'Title of the dialog that asks before disconnecting the person\'s calendar account (CalDAV server) from Antimatter.'},
+    disconnectLead: {id: 'calendar.settings.disconnect.lead', defaultMessage: 'Antimatter stops showing your events and reminding you of them. Your events stay on your calendar server.', description: 'Sentence under the title of the dialog that asks before disconnecting the person\'s calendar account: what disconnecting does and doesn\'t do.'},
     passwordStored: {id: 'calendar.settings.password_stored', defaultMessage: 'Your password is stored encrypted on the Antimatter server.'},
 
     // Views
@@ -84,6 +85,7 @@ export const messages = defineMessages({
     delete: {id: 'calendar.editor.delete', defaultMessage: 'Delete'},
     deleteConfirm: {id: 'calendar.editor.delete.confirm', defaultMessage: 'Delete this event?'},
     deleteSeriesConfirm: {id: 'calendar.editor.delete_series.confirm', defaultMessage: 'Delete every occurrence of this event?'},
+    deleteLead: {id: 'calendar.editor.delete.lead', defaultMessage: 'It’s deleted from your calendar server. This can’t be undone.', description: 'Sentence under the title of the dialog that asks before deleting a calendar event (or occurrences of a repeating one).'},
     deleteFollowingConfirm: {id: 'calendar.editor.delete_following.confirm', defaultMessage: 'Delete this occurrence and the following ones?'},
     scope: {id: 'calendar.editor.scope', defaultMessage: 'Change'},
     scopeThis: {id: 'calendar.editor.scope.this', defaultMessage: 'This event'},

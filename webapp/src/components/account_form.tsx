@@ -8,6 +8,7 @@ import {am, own} from '../class_names';
 import * as client from '../client';
 import type {Account} from '../client';
 
+import {confirmDialog} from './fusion/confirm_dialog';
 import {messages} from './messages';
 
 const REMIND_CHOICES = [0, 5, 10, 15, 30, 60];
@@ -49,8 +50,14 @@ export default function AccountForm({account, remindersEnabled, onSaved, onCance
     };
 
     const disconnect = async () => {
-        // eslint-disable-next-line no-alert
-        if (!window.confirm(formatMessage(messages.disconnectConfirm))) {
+        const yes = await confirmDialog({
+            title: formatMessage(messages.disconnectTitle),
+            message: formatMessage(messages.disconnectLead),
+            confirmLabel: formatMessage(messages.disconnect),
+            cancelLabel: formatMessage(messages.cancel),
+            danger: true,
+        });
+        if (!yes) {
             return;
         }
         try {

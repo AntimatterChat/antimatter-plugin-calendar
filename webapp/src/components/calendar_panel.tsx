@@ -11,6 +11,8 @@ import {addDays, calendarColor, startOfDay, startOfWeek} from '../utils';
 import {isFusionUI} from '../web_ui';
 
 import AccountForm from './account_form';
+import EmptyState from './fusion/empty_state';
+import {iconTip} from './fusion/tip';
 import Agenda, {UPCOMING_DAYS} from './agenda';
 import EventEditor from './event_editor';
 import Icon from './icon';
@@ -43,6 +45,9 @@ function saveHidden(hidden: string[]) {
         // Not kept, then
     }
 }
+
+// Calendar's colour in the Fusion UI (its app rail icon), for Fusion's parts that take the app's colour (--am-cc).
+export const APP_COLOR = '#FB7185';
 
 // Events are read again every few minutes, and the current event highlighted every minute.
 const REFRESH_INTERVAL = 5 * 60 * 1000;
@@ -140,21 +145,25 @@ export default function CalendarPanel() {
     const shown = events?.filter((e) => !hidden.includes(e.calendar)) || null;
 
     let content: React.ReactNode;
-    if (!loaded) {
+    if (!loaded && !error) {
+        content = (
+            <EmptyState
+                busy={true}
+                text={formatMessage(messages.loading)}
+                classicClassName={am('empty')}
+            />
+        );
+    } else if (!loaded) {
         content = (
             <div className={am('empty')}>
-                {error || formatMessage(messages.loading)}
-                {error && (
-                    <>
-                        {' '}
-                        <button
-                            className={own('link')}
-                            onClick={loadAccount}
-                        >
-                            {formatMessage(messages.retry)}
-                        </button>
-                    </>
-                )}
+                {error}
+                {' '}
+                <button
+                    className={own('link')}
+                    onClick={loadAccount}
+                >
+                    {formatMessage(messages.retry)}
+                </button>
             </div>
         );
     } else if (!account || view.kind === 'settings') {
@@ -213,8 +222,7 @@ export default function CalendarPanel() {
                     <span className={am('grow')}/>
                     <button
                         className={am('icon-btn')}
-                        title={formatMessage(messages.newEvent)}
-                        aria-label={formatMessage(messages.newEvent)}
+                        {...iconTip(formatMessage(messages.newEvent))}
                         disabled={!calendars.some((c) => !c.read_only)}
                         onClick={() => setView({kind: 'editor', occurrence: null})}
                     >
@@ -222,16 +230,14 @@ export default function CalendarPanel() {
                     </button>
                     <button
                         className={am('icon-btn')}
-                        title={formatMessage(messages.refresh)}
-                        aria-label={formatMessage(messages.refresh)}
+                        {...iconTip(formatMessage(messages.refresh))}
                         onClick={reload}
                     >
                         <Icon name='refresh'/>
                     </button>
                     <button
                         className={am('icon-btn')}
-                        title={formatMessage(messages.settings)}
-                        aria-label={formatMessage(messages.settings)}
+                        {...iconTip(formatMessage(messages.settings))}
                         onClick={() => setView({kind: 'settings'})}
                     >
                         <Icon name='cog'/>
@@ -240,8 +246,7 @@ export default function CalendarPanel() {
                 <div className={own('toolbar')}>
                     <button
                         className={am('icon-btn')}
-                        title={formatMessage(messages.previous)}
-                        aria-label={formatMessage(messages.previous)}
+                        {...iconTip(formatMessage(messages.previous))}
                         onClick={() => step(-1)}
                     >
                         <Icon name='left'/>
@@ -254,8 +259,7 @@ export default function CalendarPanel() {
                     </button>
                     <button
                         className={am('icon-btn')}
-                        title={formatMessage(messages.next)}
-                        aria-label={formatMessage(messages.next)}
+                        {...iconTip(formatMessage(messages.next))}
                         onClick={() => step(1)}
                     >
                         <Icon name='right'/>
@@ -288,7 +292,13 @@ export default function CalendarPanel() {
                         {formatMessage(messages.calendarFailed, {calendar: calendarName(f.calendar), error: f.error})}
                     </div>
                 ))}
-                {events === null && !error && <div className={am('empty')}>{formatMessage(messages.loading)}</div>}
+                {events === null && !error && (
+                    <EmptyState
+                        busy={true}
+                        text={formatMessage(messages.loading)}
+                        classicClassName={am('empty')}
+                    />
+                )}
                 {shown && mode === 'agenda' && (
                     <Agenda
                         day={day}
@@ -315,5 +325,12 @@ export default function CalendarPanel() {
         );
     }
 
-    return <div className={own('root', {fusion: isFusionUI(), classic: !isFusionUI()})}>{content}</div>;
+    return (
+        <div
+            className={own('root', {fusion: isFusionUI(), classic: !isFusionUI()})}
+            style={{'--am-cc': APP_COLOR} as React.CSSProperties}
+        >
+            {content}
+        </div>
+    );
 }

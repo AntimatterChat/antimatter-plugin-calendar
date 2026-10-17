@@ -9,6 +9,8 @@ import type {Calendar, Occurrence} from '../client';
 import {addDays, calendarColor, eventsOn, isNow} from '../utils';
 
 import EventRow from './event_row';
+import EmptyState from './fusion/empty_state';
+import Icon from './icon';
 import {messages} from './messages';
 
 // UPCOMING_DAYS is the number of days after the selected one the agenda shows.
@@ -53,7 +55,12 @@ export default function Agenda({day, events, calendars, now, onOpen}: Props) {
                 <span>{day.toLocaleDateString(locale, {month: 'long', day: 'numeric'})}</span>
             </div>
             {today.length === 0 ? (
-                <div className={am('empty')}>{formatMessage(messages.noEvents)}</div>
+                <EmptyState
+                    data-testid='calendar-day-empty'
+                    icon={<Icon name='calendar'/>}
+                    text={formatMessage(messages.noEvents)}
+                    classicClassName={am('empty')}
+                />
             ) : (
                 <DayEvents
                     events={today}

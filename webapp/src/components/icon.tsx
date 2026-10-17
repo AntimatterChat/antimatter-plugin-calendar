@@ -4,8 +4,9 @@
 import React from 'react';
 
 import {am} from '../class_names';
+import {isFusionUI} from '../web_ui';
 
-// The icons of the Fusion mockup the calendar panel uses (shapes written as paths).
+// The icons of the Fusion mockup the calendar panel uses, as paths for the classic UI, which has no Fusion sprite.
 const paths: Record<string, React.ReactNode> = {
     calendar: (<path d='M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3 10h18M8 3v4M16 3v4M8 14h3v3H8z'/>),
     plus: (<path d='M12 5v14M5 12h14'/>),
@@ -22,17 +23,45 @@ const paths: Record<string, React.ReactNode> = {
 
 export type IconName = keyof typeof paths;
 
+// The symbols of Fusion's icon sprite (#am-i-<name>) drawn under Fusion, and how they're turned: the sprite's chevron
+// points down. Fusion's sprite has no repeat or refresh arrows, which keep their own drawing.
+const sprite: Partial<Record<IconName, {name: string; turn?: number}>> = {
+    calendar: {name: 'calendar'},
+    plus: {name: 'plus'},
+    cog: {name: 'cog'},
+    speaker: {name: 'speaker'},
+    phone: {name: 'phone'},
+    hash: {name: 'hash'},
+    back: {name: 'chev', turn: 90},
+    left: {name: 'chev', turn: 90},
+    right: {name: 'chev', turn: -90},
+};
+
 type Props = {
     name: IconName;
     size?: 'sm' | 'xs';
 };
 
 export default function Icon({name, size}: Props) {
+    const symbol = isFusionUI() ? sprite[name] : null;
+    if (symbol) {
+        return (
+            <svg
+                className={am('ic', size)}
+                aria-hidden='true'
+                data-icon={name}
+                style={symbol.turn ? {transform: `rotate(${symbol.turn}deg)`} : {}}
+            >
+                <use href={`#am-i-${symbol.name}`}/>
+            </svg>
+        );
+    }
     return (
         <svg
             className={am('ic', size)}
             viewBox='0 0 24 24'
             aria-hidden='true'
+            data-icon={name}
         >
             {paths[name]}
         </svg>

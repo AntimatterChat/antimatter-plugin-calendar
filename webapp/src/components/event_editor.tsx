@@ -13,6 +13,9 @@ import type {Calendar, Occurrence, Recurrence, Scope} from '../client';
 import {dateInput, parseLocal} from '../utils';
 
 import {detailsForm, newEventForm, toInput, type Form} from './event_form';
+import {confirmDialog} from './fusion/confirm_dialog';
+import EmptyState from './fusion/empty_state';
+import {iconTip} from './fusion/tip';
 import Icon from './icon';
 import {messages} from './messages';
 
@@ -100,7 +103,7 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
         run(() => (occurrence ? client.updateEvent(occurrence.path, etag, input, occurrence.recurrence_id, scope) : client.createEvent(input)));
     };
 
-    const remove = () => {
+    const remove = async () => {
         if (!occurrence) {
             return;
         }
@@ -110,9 +113,15 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
         } else if (repeating && scope === 'following') {
             confirmation = messages.deleteFollowingConfirm;
         }
-
-        // eslint-disable-next-line no-alert
-        if (!window.confirm(formatMessage(confirmation))) {
+        const yes = await confirmDialog({
+            title: formatMessage(confirmation),
+            message: formatMessage(messages.deleteLead),
+            confirmLabel: formatMessage(messages.delete),
+            cancelLabel: formatMessage(messages.cancel),
+            danger: true,
+            icon: 'trash',
+        });
+        if (!yes) {
             return;
         }
         run(() => client.deleteEvent(occurrence.path, etag, repeating ? occurrence.recurrence_id : 0, scope));
@@ -127,7 +136,13 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
     if (!form) {
         return (
             <div className={am('app-panel')}>
-                {error ? <div className={own('error')}>{error}</div> : <div className={am('empty')}>{formatMessage(messages.loading)}</div>}
+                {error ? <div className={own('error')}>{error}</div> : (
+                    <EmptyState
+                        busy={true}
+                        text={formatMessage(messages.loading)}
+                        classicClassName={am('empty')}
+                    />
+                )}
                 <div className={own('actions')}>
                     <button
                         className={am('btn')}
@@ -163,8 +178,7 @@ export default function EventEditor({calendars, occurrence, day, onDone, onCance
                 <button
                     type='button'
                     className={am('icon-btn')}
-                    title={formatMessage(messages.cancel)}
-                    aria-label={formatMessage(messages.cancel)}
+                    {...iconTip(formatMessage(messages.cancel))}
                     onClick={onCancel}
                 >
                     <Icon name='back'/>

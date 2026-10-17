@@ -8,6 +8,7 @@ import {own} from '../class_names';
 import type {Calendar, Occurrence} from '../client';
 import {addDays, calendarColor, eventsOn, formatTime, isNow, sameDay} from '../utils';
 
+import {tip} from './fusion/tip';
 import {messages} from './messages';
 
 type Props = {
@@ -48,7 +49,7 @@ export default function Week({weekStart, events, calendars, now, onOpen, onDay}:
                             key={event.id}
                             className={own('chip', {now: isNow(event, now), 'all-day': event.all_day})}
                             style={{'--amc-ev': calendarColor(calendars, event.calendar)} as React.CSSProperties}
-                            title={event.summary}
+                            {...(event.summary ? tip(event.summary) : {})}
                             onClick={() => onOpen(event)}
                         >
                             <span className={own('chip-time')}>{event.all_day ? formatMessage(messages.allDay) : formatTime(event.start, locale)}</span>

@@ -8,6 +8,7 @@ import {am, own} from '../class_names';
 import type {Occurrence} from '../client';
 import {durationMinutes, formatTime} from '../utils';
 
+import {iconTip} from './fusion/tip';
 import Icon from './icon';
 import {useMeeting} from './meeting';
 import {messages} from './messages';
@@ -57,7 +58,8 @@ export default function EventRow({event, color, now, onOpen}: Props) {
                     {event.recurrence && (
                         <span
                             className={own('repeat')}
-                            title={formatMessage(messages.repeats)}
+                            role='img'
+                            {...iconTip(formatMessage(messages.repeats))}
                         >
                             <Icon
                                 name='repeat'

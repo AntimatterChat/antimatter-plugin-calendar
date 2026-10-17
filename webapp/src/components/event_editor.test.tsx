@@ -1,7 +1,7 @@
 // Copyright (c) 2026-present Antimatter contributors.
 // See LICENSE.txt for license information.
 
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import React from 'react';
 import {IntlProvider} from 'react-intl';
 
@@ -9,6 +9,7 @@ import * as client from '../client';
 import type {EventDetails, Occurrence} from '../client';
 
 import EventEditor from './event_editor';
+import {FUSION_LAYER_ID} from './fusion/fusion_ui';
 
 jest.mock('react-redux', () => ({useSelector: (selector: (state: object) => unknown) => selector({})}));
 jest.mock('mattermost-redux/selectors/entities/channels', () => ({
@@ -103,5 +104,62 @@ describe('EventEditor with a repeating event', () => {
         expect((screen.getByLabelText('Starts') as HTMLInputElement).value).toBe('2026-10-12');
         fireEvent.click(screen.getByText('Delete'));
         await waitFor(() => expect(mocked.deleteEvent).toHaveBeenCalledWith(occurrence.path, 'e1', occurrence.recurrence_id, 'following'));
+    });
+});
+
+describe('EventEditor under Fusion', () => {
+    beforeEach(() => {
+        window.antimatterWebUI = 'fusion';
+        document.documentElement.dataset.amWebUi = 'fusion';
+        const layer = document.createElement('div');
+        layer.id = FUSION_LAYER_ID;
+        layer.className = 'am-layer';
+        document.body.appendChild(layer);
+        mocked.getEvent.mockImplementation(async (_path, recurrenceID) => (recurrenceID ? details('2026-10-12T12:00:00Z', '2026-10-12T12:30:00Z', {recurrence_id: recurrenceID}) : details('2026-10-05T12:00:00Z', '2026-10-05T12:30:00Z')));
+        mocked.deleteEvent.mockReset();
+        mocked.deleteEvent.mockResolvedValue({});
+    });
+
+    afterEach(() => {
+        delete window.antimatterWebUI;
+        delete document.documentElement.dataset.amWebUi;
+        document.getElementById(FUSION_LAYER_ID)?.remove();
+        jest.restoreAllMocks();
+    });
+
+    test('asks with Fusion\'s dialog before deleting, and deletes only on yes', async () => {
+        const native = jest.spyOn(window, 'confirm');
+        native.mockClear();
+        const onDone = renderEditor();
+        await screen.findByLabelText('Starts');
+
+        // No: nothing is deleted.
+        fireEvent.click(screen.getByText('Delete'));
+        const dialog = await screen.findByRole('alertdialog');
+        expect(document.getElementById(FUSION_LAYER_ID)).toContainElement(dialog);
+        expect(dialog).toHaveTextContent('Delete this event?');
+        expect(dialog).toHaveTextContent('It’s deleted from your calendar server. This can’t be undone.');
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+        expect(mocked.deleteEvent).not.toHaveBeenCalled();
+
+        // Yes: the occurrence alone is deleted (the default scope).
+        fireEvent.click(screen.getByText('Delete'));
+        const again = await screen.findByRole('alertdialog');
+        const yes = again.querySelector<HTMLButtonElement>('button[data-amfx-confirm="confirm"]')!;
+        expect(yes).toHaveClass('am-btn', 'am-danger');
+        fireEvent.click(yes);
+        await waitFor(() => expect(mocked.deleteEvent).toHaveBeenCalledWith(occurrence.path, 'e1', occurrence.recurrence_id, 'this'));
+        await waitFor(() => expect(onDone).toHaveBeenCalled());
+        expect(native).not.toHaveBeenCalled();
+    });
+
+    test('the back button has Fusion\'s tooltip, not the browser\'s', async () => {
+        renderEditor();
+        await screen.findByLabelText('Starts');
+        const back = screen.getAllByRole('button', {name: 'Cancel'}).find((b) => b.querySelector('svg'))!;
+        expect(back).toHaveAttribute('data-am-tip', 'Cancel');
+        expect(back).not.toHaveAttribute('title');
+        expect(back.querySelector('use')).toHaveAttribute('href', '#am-i-chev');
     });
 });
