@@ -227,6 +227,11 @@ export type Meeting = {
     created_at: number;
     updated_at: number;
     rsvps?: Record<string, RSVP>;
+
+    // can_cancel is computed by the server for the caller: the organiser, that channel's admins,
+    // that community's admins, and system admins. Editing stays organiser-only (not reflected
+    // here, since only the organiser ever sees an Edit button).
+    can_cancel: boolean;
 };
 
 export type MeetingInput = {

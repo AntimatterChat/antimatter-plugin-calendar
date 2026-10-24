@@ -15,10 +15,13 @@ import (
 type fakeKV struct {
 	mu   sync.Mutex
 	data map[string][]byte
+	// options are the options a key was last successfully saved with (so a test can check a
+	// TTL), keyed the same as data.
+	options map[string]model.PluginKVSetOptions
 }
 
 func newFakeKV() *fakeKV {
-	return &fakeKV{data: map[string][]byte{}}
+	return &fakeKV{data: map[string][]byte{}, options: map[string]model.PluginKVSetOptions{}}
 }
 
 func (f *fakeKV) KVGet(key string) ([]byte, *model.AppError) {
@@ -41,8 +44,10 @@ func (f *fakeKV) KVSetWithOptions(key string, value []byte, options model.Plugin
 	}
 	if value == nil {
 		delete(f.data, key)
+		delete(f.options, key)
 	} else {
 		f.data[key] = bytes.Clone(value)
+		f.options[key] = options
 	}
 	return true, nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/emersion/go-ical"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/teambition/rrule-go"
 )
 
 func testICSMeeting() *Meeting {
@@ -40,7 +41,7 @@ func TestBuildMeetingICSRequest(t *testing.T) {
 		{Email: "margaret@example.com", Name: "Margaret Hamilton"}, // hasn't answered yet
 	}
 
-	cal := buildMeetingICS(m, organizer, attendees, now, "https://chat.example.com/lab/channels/standup")
+	cal := buildMeetingICS(m, organizer, attendees, now, "https://chat.example.com/lab/channels/standup", meetingICSOptions{ReminderMinutes: noReminderMinutes})
 	require.Len(t, cal.Children, 1)
 	ev := cal.Children[0]
 
@@ -104,7 +105,7 @@ func TestBuildMeetingICSRequest(t *testing.T) {
 func TestBuildMeetingICSUpdateBumpsSequence(t *testing.T) {
 	m := testICSMeeting()
 	m.Sequence = 3
-	cal := buildMeetingICS(m, invitee{Email: "ada@example.com"}, nil, time.Now(), "")
+	cal := buildMeetingICS(m, invitee{Email: "ada@example.com"}, nil, time.Now(), "", meetingICSOptions{ReminderMinutes: noReminderMinutes})
 	assert.Equal(t, "REQUEST", cal.Props.Get(ical.PropMethod).Value)
 	assert.Equal(t, "3", cal.Children[0].Props.Get(ical.PropSequence).Value)
 }
@@ -118,7 +119,7 @@ func TestBuildMeetingICSCancel(t *testing.T) {
 	m.Cancelled = true
 	m.Sequence = 2
 	cal := buildMeetingICS(m, invitee{Email: "ada@example.com", Name: "Ada Lovelace"},
-		[]invitee{{Email: "grace@example.com", RSVP: RSVPGoing}}, time.Now(), "")
+		[]invitee{{Email: "grace@example.com", RSVP: RSVPGoing}}, time.Now(), "", meetingICSOptions{ReminderMinutes: noReminderMinutes})
 	ev := cal.Children[0]
 
 	assert.Equal(t, "CANCEL", cal.Props.Get(ical.PropMethod).Value)
@@ -135,12 +136,71 @@ func TestBuildMeetingICSCancel(t *testing.T) {
 }
 
 func TestICSContentType(t *testing.T) {
-	live := testICSMeeting()
-	assert.Contains(t, icsContentType(live), "method=REQUEST")
+	assert.Contains(t, icsContentType(false), "method=REQUEST")
+	assert.Contains(t, icsContentType(true), "method=CANCEL")
+}
 
-	cancelled := testICSMeeting()
-	cancelled.Cancelled = true
-	assert.Contains(t, icsContentType(cancelled), "method=CANCEL")
+// TestBuildMeetingICSRecurring checks that a recurring series' REQUEST carries its RRULE and
+// EXDATEs, and that its VALARM matches the recipient's effective reminder.
+func TestBuildMeetingICSRecurring(t *testing.T) {
+	m := testICSMeeting()
+	m.RecurrenceRule = "FREQ=WEEKLY;BYDAY=MO,WE"
+	second := time.UnixMilli(m.Start).AddDate(0, 0, 7).UnixMilli()
+	m.ExceptionDates = []int64{second}
+
+	cal := buildMeetingICS(m, invitee{Email: "ada@example.com"}, nil, time.Now(), "", meetingICSOptions{ReminderMinutes: 15})
+	ev := cal.Children[0]
+
+	assert.Equal(t, m.RecurrenceRule, ev.Props.Get(ical.PropRecurrenceRule).Value)
+	exdates := ev.Props.Values(ical.PropExceptionDates)
+	require.Len(t, exdates, 1)
+	assert.Equal(t, time.UnixMilli(second).UTC().Format("20060102T150405Z"), exdates[0].Value)
+
+	require.Len(t, ev.Children, 1, "one VALARM for the recipient's effective reminder")
+	assert.Equal(t, "VALARM", ev.Children[0].Name)
+	assert.Equal(t, "-PT15M", ev.Children[0].Props.Get(ical.PropTrigger).Value)
+
+	// Round-trips through the real decoder.
+	data := encodeCalendar(t, cal)
+	back := decodeCalendar(t, strings.ReplaceAll(data, "\r\n", "\n"))
+	rule, err := back.Children[0].Props.RecurrenceRule()
+	require.NoError(t, err)
+	assert.Equal(t, rrule.WEEKLY, rule.Freq)
+}
+
+// TestBuildMeetingICSNoReminderHasNoValarm checks that noReminderMinutes ("None") omits the
+// VALARM entirely, rather than sending one with a strange trigger.
+func TestBuildMeetingICSNoReminderHasNoValarm(t *testing.T) {
+	m := testICSMeeting()
+	cal := buildMeetingICS(m, invitee{Email: "ada@example.com"}, nil, time.Now(), "", meetingICSOptions{ReminderMinutes: noReminderMinutes})
+	assert.Empty(t, cal.Children[0].Children, "no VALARM when the recipient's reminder is None")
+}
+
+// TestBuildMeetingICSOccurrenceCancel checks that cancelling one occurrence of a series (as
+// opposed to the whole series) carries RECURRENCE-ID, that occurrence's own time, and the series
+// UID, per RFC 5546.
+func TestBuildMeetingICSOccurrenceCancel(t *testing.T) {
+	m := testICSMeeting()
+	m.RecurrenceRule = "FREQ=WEEKLY"
+	m.Sequence = 1
+	occStart := time.UnixMilli(m.Start).AddDate(0, 0, 7)
+	occEnd := occStart.Add(30 * time.Minute)
+
+	cal := buildMeetingICS(m, invitee{Email: "ada@example.com"}, nil, time.Now(), "", meetingICSOptions{
+		OccurrenceStart: occStart, OccurrenceEnd: occEnd, ReminderMinutes: noReminderMinutes,
+	})
+	ev := cal.Children[0]
+
+	assert.Equal(t, "CANCEL", cal.Props.Get(ical.PropMethod).Value)
+	assert.Equal(t, meetingUID(m.ID), ev.Props.Get(ical.PropUID).Value, "the series UID, not a new one")
+	assert.Equal(t, occStart.UTC().Format("20060102T150405Z"), ev.Props.Get(ical.PropRecurrenceID).Value)
+	assert.Equal(t, occStart.UTC().Format("20060102T150405Z"), ev.Props.Get(ical.PropDateTimeStart).Value)
+	assert.Equal(t, "CANCELLED", ev.Props.Get(ical.PropStatus).Value)
+	assert.Nil(t, ev.Props.Get(ical.PropRecurrenceRule), "an occurrence override carries no RRULE of its own")
+
+	data := encodeCalendar(t, cal)
+	back := decodeCalendar(t, strings.ReplaceAll(data, "\r\n", "\n"))
+	assert.Equal(t, meetingUID(m.ID), textProp(back.Children[0], ical.PropUID))
 }
 
 func TestMeetingUIDStableAcrossEdits(t *testing.T) {

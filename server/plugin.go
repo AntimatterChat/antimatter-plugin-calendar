@@ -41,8 +41,13 @@ type Plugin struct {
 
 	// inviteSender sends a meeting's iTIP email invitations, off the request that scheduled,
 	// edited or cancelled it (OnActivate runs it in its own goroutine). nil (as in a test that
-	// doesn't exercise it) skips sending invitations.
-	inviteSender func(m *Meeting, channel *model.Channel, organizer *model.User)
+	// doesn't exercise it) skips sending invitations. actor is who made the change (the organiser,
+	// scheduling or editing it; the organiser or an admin, cancelling it).
+	inviteSender func(m *Meeting, channel *model.Channel, organizer, actor *model.User)
+
+	// occurrenceCancelSender emails the iTIP cancellation of a single occurrence of a recurring
+	// call (the rest of the series goes on), the same way inviteSender does for the whole series.
+	occurrenceCancelSender func(m *Meeting, channel *model.Channel, organizer, canceller *model.User, byAdmin bool, occurrenceStart, occurrenceEnd time.Time)
 
 	// tlsConfig is nil for the default TLS configuration (tests set their own CA).
 	tlsConfig *tls.Config
@@ -61,8 +66,11 @@ func (p *Plugin) OnActivate() error {
 
 	p.store = NewStore(p.API, box)
 	p.router = p.newRouter()
-	p.inviteSender = func(m *Meeting, channel *model.Channel, organizer *model.User) {
-		go p.sendMeetingInvites(m, channel, organizer)
+	p.inviteSender = func(m *Meeting, channel *model.Channel, organizer, actor *model.User) {
+		go p.sendMeetingInvites(m, channel, organizer, actor)
+	}
+	p.occurrenceCancelSender = func(m *Meeting, channel *model.Channel, organizer, canceller *model.User, byAdmin bool, occurrenceStart, occurrenceEnd time.Time) {
+		go p.sendOccurrenceCancellationEmails(m, channel, organizer, canceller, byAdmin, occurrenceStart, occurrenceEnd)
 	}
 
 	bundlePath, err := p.API.GetBundlePath()

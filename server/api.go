@@ -106,6 +106,7 @@ func (p *Plugin) newRouter() *mux.Router {
 	api.HandleFunc("/meetings/{meetingId}", p.handleEditMeeting).Methods(http.MethodPut)
 	api.HandleFunc("/meetings/{meetingId}", p.handleCancelMeeting).Methods(http.MethodDelete)
 	api.HandleFunc("/meetings/{meetingId}/rsvp", p.handleSetRSVP).Methods(http.MethodPost)
+	api.HandleFunc("/meetings/{meetingId}/reminder", p.handleSetReminderOverride).Methods(http.MethodPost)
 	api.HandleFunc("/meetings/{meetingId}/ics", p.handleMeetingICS).Methods(http.MethodGet)
 
 	return router

@@ -65,14 +65,31 @@ func addressProp(name, email, commonName string) *ical.Prop {
 	return prop
 }
 
+// meetingICSOptions describes which iTIP message buildMeetingICS builds: the whole series (the
+// usual case), or one occurrence of a recurring series (a cancellation of just that occurrence),
+// and the VALARM trigger of the recipient it's being built for.
+type meetingICSOptions struct {
+	// OccurrenceStart and OccurrenceEnd, both non-zero, mean this message is about one occurrence
+	// of a recurring series only (RFC 5546 RECURRENCE-ID), not the series itself: cancelling one
+	// occurrence without cancelling the rest of it.
+	OccurrenceStart, OccurrenceEnd time.Time
+
+	// ReminderMinutes is the recipient's own effective reminder choice: a VALARM with that
+	// trigger is added to a REQUEST, noReminderMinutes (the default zero value) adds none.
+	ReminderMinutes int
+}
+
 // buildMeetingICS returns the iTIP calendar object scheduling, updating or cancelling a meeting
 // (RFC 5545 and RFC 5546): METHOD:REQUEST while it's live (METHOD:CANCEL with STATUS:CANCELLED
-// once it's cancelled), ORGANIZER and one ATTENDEE per invitee, and the meeting's SEQUENCE so
-// calendar apps apply updates and cancellations in order. permalink, if not empty, is the
-// channel's URL.
-func buildMeetingICS(m *Meeting, organizer invitee, attendees []invitee, now time.Time, permalink string) *ical.Calendar {
+// once it's cancelled, or once opts describes a cancelled occurrence of it), ORGANIZER and one
+// ATTENDEE per invitee, and the meeting's SEQUENCE so calendar apps apply updates and
+// cancellations in order. A recurring series carries its RRULE and EXDATEs. permalink, if not
+// empty, is the channel's URL.
+func buildMeetingICS(m *Meeting, organizer invitee, attendees []invitee, now time.Time, permalink string, opts meetingICSOptions) *ical.Calendar {
+	occurrence := !opts.OccurrenceStart.IsZero()
+	cancelled := m.Cancelled || occurrence
 	method := itipMethodRequest
-	if m.Cancelled {
+	if cancelled {
 		method = itipMethodCancel
 	}
 
@@ -97,10 +114,29 @@ func buildMeetingICS(m *Meeting, organizer invitee, attendees []invitee, now tim
 	if m.Description != "" {
 		ev.Props.SetText(ical.PropDescription, m.Description)
 	}
-	setTime(ev.Props, ical.PropDateTimeStart, time.UnixMilli(m.Start).UTC(), false)
-	setTime(ev.Props, ical.PropDateTimeEnd, time.UnixMilli(m.End).UTC(), false)
 
-	if m.Cancelled {
+	start, end := time.UnixMilli(m.Start), time.UnixMilli(m.End)
+	if occurrence {
+		start, end = opts.OccurrenceStart, opts.OccurrenceEnd
+		recurrenceID := ical.NewProp(ical.PropRecurrenceID)
+		recurrenceID.SetDateTime(opts.OccurrenceStart.UTC())
+		ev.Props.Set(recurrenceID)
+	} else if m.recurring() {
+		rule := ical.NewProp(ical.PropRecurrenceRule)
+		rule.SetValueType(ical.ValueRecurrence)
+		rule.Value = m.RecurrenceRule
+		ev.Props.Set(rule)
+		loc := meetingTimeZone(m)
+		for _, ex := range m.ExceptionDates {
+			exdate := ical.NewProp(ical.PropExceptionDates)
+			exdate.SetDateTime(time.UnixMilli(ex).In(loc).UTC())
+			ev.Props.Add(exdate)
+		}
+	}
+	setTime(ev.Props, ical.PropDateTimeStart, start.UTC(), false)
+	setTime(ev.Props, ical.PropDateTimeEnd, end.UTC(), false)
+
+	if cancelled {
 		ev.Props.SetText(ical.PropStatus, string(ical.EventCancelled))
 	}
 	if permalink != "" {
@@ -125,10 +161,20 @@ func buildMeetingICS(m *Meeting, organizer invitee, attendees []invitee, now tim
 		prop := addressProp(ical.PropAttendee, a.Email, a.Name)
 		prop.Params.Set(ical.ParamRole, "REQ-PARTICIPANT")
 		prop.Params.Set(ical.ParamParticipationStatus, partStat(a.RSVP))
-		if !m.Cancelled {
+		if !cancelled {
 			prop.Params.Set(ical.ParamRSVP, "TRUE")
 		}
 		ev.Props.Add(prop)
+	}
+
+	if !cancelled && opts.ReminderMinutes != noReminderMinutes {
+		alarm := ical.NewComponent(ical.CompAlarm)
+		alarm.Props.SetText(ical.PropAction, "DISPLAY")
+		alarm.Props.SetText(ical.PropDescription, m.Summary)
+		trigger := ical.NewProp(ical.PropTrigger)
+		trigger.Value = fmt.Sprintf("-PT%dM", opts.ReminderMinutes)
+		alarm.Props.Set(trigger)
+		ev.Children = append(ev.Children, alarm)
 	}
 
 	setRaw(ev.Props, propChannelID, m.ChannelID)
@@ -148,8 +194,9 @@ func encodeICS(cal *ical.Calendar) ([]byte, error) {
 }
 
 // icsContentType returns the MIME type of the attachment of a meeting's iTIP invitation email.
-func icsContentType(m *Meeting) string {
-	if m.Cancelled {
+// cancelled is true for a METHOD:CANCEL message: the series itself, or one occurrence of it.
+func icsContentType(cancelled bool) string {
+	if cancelled {
 		return icsContentTypeCancel
 	}
 	return icsContentTypeRequest

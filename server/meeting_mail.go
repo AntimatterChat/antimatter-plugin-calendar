@@ -19,7 +19,10 @@ var (
 	msgMeetingEmailCancelledSubject = &i18n.Message{ID: "calendar.meeting.email.cancelled_subject", Other: "Cancelled: {{.Summary}}"}
 	msgMeetingEmailBody             = &i18n.Message{ID: "calendar.meeting.email.body", Other: "<p>{{.Organizer}} invited you to <b>{{.Summary}}</b>, {{.When}}.</p><p>Open the attached invitation to add it to your calendar, or answer from the message in the channel.</p>"}
 	msgMeetingEmailCancelledBody    = &i18n.Message{ID: "calendar.meeting.email.cancelled_body", Other: "<p>{{.Organizer}} cancelled <b>{{.Summary}}</b>, which was scheduled for {{.When}}.</p>"}
-	msgMeetingEmailOpenChannel      = &i18n.Message{ID: "calendar.meeting.email.open_channel", Other: "Open the channel"}
+	// msgMeetingEmailCancelledByBody is used instead of msgMeetingEmailCancelledBody when the
+	// organiser didn't cancel it themselves (a channel, community or system admin did).
+	msgMeetingEmailCancelledByBody = &i18n.Message{ID: "calendar.meeting.email.cancelled_by_body", Other: "<p>{{.Canceller}} cancelled <b>{{.Summary}}</b> (organised by {{.Organizer}}), which was scheduled for {{.When}}.</p>"}
+	msgMeetingEmailOpenChannel     = &i18n.Message{ID: "calendar.meeting.email.open_channel", Other: "Open the channel"}
 )
 
 // meetingEmailSubject is the subject of a meeting's iTIP email, in a recipient's language.
@@ -35,8 +38,9 @@ func meetingEmailSubject(t *translator, m *Meeting, isUpdate bool) string {
 }
 
 // meetingEmailBody is the HTML body of a meeting's iTIP email, in a recipient's language and time
-// zone.
-func meetingEmailBody(t *translator, m *Meeting, organizer *model.User, loc *time.Location, permalink string) string {
+// zone. actor is who made the change: when a cancellation wasn't the organiser's own, the email
+// says who cancelled it, as well as who organised it.
+func meetingEmailBody(t *translator, m *Meeting, organizer, actor *model.User, loc *time.Location, permalink string) string {
 	when := meetingWhen(t, time.UnixMilli(m.Start).In(loc), time.UnixMilli(m.End).In(loc))
 	data := map[string]any{
 		"Organizer": html.EscapeString(organizer.GetFullName()),
@@ -44,7 +48,11 @@ func meetingEmailBody(t *translator, m *Meeting, organizer *model.User, loc *tim
 		"When":      html.EscapeString(when),
 	}
 	message := msgMeetingEmailBody
-	if m.Cancelled {
+	switch {
+	case m.Cancelled && actor != nil && actor.Id != organizer.Id:
+		message = msgMeetingEmailCancelledByBody
+		data["Canceller"] = html.EscapeString(actor.GetFullName())
+	case m.Cancelled:
 		message = msgMeetingEmailCancelledBody
 	}
 	body := t.T(message, data)
@@ -57,8 +65,9 @@ func meetingEmailBody(t *translator, m *Meeting, organizer *model.User, loc *tim
 // sendMeetingInvites emails the iTIP invitation (or update, or cancellation) of a meeting to the
 // channel's members who connected a calendar account and asked for email invitations. Members
 // without one still see, join and RSVP to the meeting from its post; this is the extra channel
-// for those who want it in their own calendar and inbox too.
-func (p *Plugin) sendMeetingInvites(m *Meeting, channel *model.Channel, organizer *model.User) {
+// for those who want it in their own calendar and inbox too. actor is who made the change (see
+// meetingEmailBody).
+func (p *Plugin) sendMeetingInvites(m *Meeting, channel *model.Channel, organizer, actor *model.User) {
 	ids, err := p.channelMemberIDs(m.ChannelID)
 	if err != nil {
 		p.API.LogWarn("Failed to list a meeting's invitees", "err", err.Error())
@@ -95,7 +104,8 @@ func (p *Plugin) sendMeetingInvites(m *Meeting, channel *model.Channel, organize
 		}
 		t := newTranslator(p.translations, user.Locale)
 
-		cal := buildMeetingICS(m, organizerParty, invitees, now, permalink)
+		opts := meetingICSOptions{ReminderMinutes: m.effectiveReminderMinutes(id)}
+		cal := buildMeetingICS(m, organizerParty, invitees, now, permalink, opts)
 		data, err := encodeICS(cal)
 		if err != nil {
 			p.API.LogWarn("Failed to build a meeting's invitation", "err", err.Error())
@@ -103,8 +113,8 @@ func (p *Plugin) sendMeetingInvites(m *Meeting, channel *model.Channel, organize
 		}
 
 		subject := meetingEmailSubject(t, m, isUpdate)
-		body := meetingEmailBody(t, m, organizer, loc, permalink)
-		if appErr := p.API.SendMailWithAttachment(user.Email, subject, body, "invite.ics", icsContentType(m), data); appErr != nil {
+		body := meetingEmailBody(t, m, organizer, actor, loc, permalink)
+		if appErr := p.API.SendMailWithAttachment(user.Email, subject, body, "invite.ics", icsContentType(m.Cancelled), data); appErr != nil {
 			p.API.LogWarn("Failed to email a meeting's invitation", "user_id", id, "err", appErr.Error())
 		}
 	}

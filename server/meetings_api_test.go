@@ -82,9 +82,9 @@ func TestHandleCreateMeeting(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-// TestHandleEditAndCancelMeetingOrganizerOnly checks that only the organiser may edit or cancel a
-// meeting, as the brief asks: not even another member, or a channel or system admin.
-func TestHandleEditAndCancelMeetingOrganizerOnly(t *testing.T) {
+// TestHandleEditMeetingOrganizerOnly checks that editing stays organiser-only: not even a channel,
+// community or system admin may edit it (only cancel it; see TestCanCancelMeeting).
+func TestHandleEditMeetingOrganizerOnly(t *testing.T) {
 	e := newMeetingTestEnv(t)
 	channelID := model.NewId()
 	organizerID := model.NewId()
@@ -97,14 +97,122 @@ func TestHandleEditAndCancelMeetingOrganizerOnly(t *testing.T) {
 
 	w := e.request(t, http.MethodPut, "/api/v1/meetings/"+m.ID, meetingBody(time.Now().Add(2*time.Hour)))
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	w = e.request(t, http.MethodDelete, "/api/v1/meetings/"+m.ID, nil)
-	assert.Equal(t, http.StatusForbidden, w.Code)
 
 	// The meeting is unchanged.
 	stored, err := e.p.store.GetMeeting(m.ID)
 	require.NoError(t, err)
-	assert.False(t, stored.Cancelled)
 	assert.Equal(t, 0, stored.Sequence)
+}
+
+// TestCanCancelMeeting checks exactly who may cancel a meeting: its organiser, that channel's
+// admin, that community's admin, and a system admin — each checked explicitly, never through a
+// broad permission such as delete_others_posts — but not a plain member, and not someone who
+// holds one of those admin roles somewhere else (a different channel or community).
+func TestCanCancelMeeting(t *testing.T) {
+	channelID := model.NewId()
+	teamID := model.NewId()
+	channel := &model.Channel{Id: channelID, TeamId: teamID}
+	m := testMeeting()
+	m.ChannelID = channelID
+	m.OrganizerID = model.NewId()
+
+	testCases := map[string]struct {
+		setup func(e *testEnv)
+		want  bool
+	}{
+		"the organiser": {
+			setup: func(e *testEnv) { e.userID = m.OrganizerID },
+			want:  true,
+		},
+		"a system admin": {
+			setup: func(e *testEnv) {
+				e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(true)
+			},
+			want: true,
+		},
+		"that channel's admin": {
+			setup: func(e *testEnv) {
+				e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false)
+				e.api.On("GetChannelMember", channelID, e.userID).Return(&model.ChannelMember{SchemeAdmin: true}, nil)
+			},
+			want: true,
+		},
+		"that community's admin": {
+			setup: func(e *testEnv) {
+				e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false)
+				e.api.On("GetChannelMember", channelID, e.userID).Return(nil, model.NewAppError("test", "test.not_a_member", nil, "", http.StatusNotFound))
+				e.api.On("GetChannel", channelID).Return(channel, nil)
+				e.api.On("GetTeamMember", teamID, e.userID).Return(&model.TeamMember{SchemeAdmin: true}, nil)
+			},
+			want: true,
+		},
+		"a plain member": {
+			setup: func(e *testEnv) {
+				e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false)
+				e.api.On("GetChannelMember", channelID, e.userID).Return(&model.ChannelMember{SchemeAdmin: false}, nil)
+				e.api.On("GetChannel", channelID).Return(channel, nil)
+				e.api.On("GetTeamMember", teamID, e.userID).Return(&model.TeamMember{SchemeAdmin: false}, nil)
+			},
+			want: false,
+		},
+		"an admin of a different channel and community": {
+			setup: func(e *testEnv) {
+				e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false)
+				e.api.On("GetChannelMember", channelID, e.userID).Return(nil, model.NewAppError("test", "test.not_a_member", nil, "", http.StatusNotFound))
+				e.api.On("GetChannel", channelID).Return(channel, nil)
+				e.api.On("GetTeamMember", teamID, e.userID).Return(nil, model.NewAppError("test", "test.not_a_member", nil, "", http.StatusNotFound))
+			},
+			want: false,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			e := newMeetingTestEnv(t)
+			e.userID = model.NewId()
+			tc.setup(e)
+			assert.Equal(t, tc.want, e.p.canCancelMeeting(e.userID, m))
+		})
+	}
+}
+
+// TestHandleCancelMeetingPermissions checks the HTTP-level consequences of canCancelMeeting: a
+// plain member is refused (403), and a meeting in a channel the caller can't read at all looks
+// like one that doesn't exist (404) even to someone who happens to be an admin elsewhere.
+func TestHandleCancelMeetingPermissions(t *testing.T) {
+	e := newMeetingTestEnv(t)
+	channelID := model.NewId()
+	m := testMeeting()
+	m.ChannelID = channelID
+	m.OrganizerID = model.NewId()
+	require.NoError(t, e.p.store.CreateMeeting(m))
+
+	e.api.On("HasPermissionToChannel", e.userID, channelID, model.PermissionReadChannel).Return(true)
+	e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false)
+	e.api.On("GetChannelMember", channelID, e.userID).Return(&model.ChannelMember{SchemeAdmin: false}, nil)
+	e.api.On("GetChannel", channelID).Return(&model.Channel{Id: channelID}, nil)
+
+	w := e.request(t, http.MethodDelete, "/api/v1/meetings/"+m.ID, nil)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+
+	stored, err := e.p.store.GetMeeting(m.ID)
+	require.NoError(t, err)
+	assert.False(t, stored.Cancelled)
+}
+
+// TestHandleCancelMeetingUnreadableChannel checks that a meeting in a channel the caller can't
+// read at all looks like one that doesn't exist (404), even to an admin elsewhere.
+func TestHandleCancelMeetingUnreadableChannel(t *testing.T) {
+	e := newMeetingTestEnv(t)
+	channelID := model.NewId()
+	m := testMeeting()
+	m.ChannelID = channelID
+	m.OrganizerID = model.NewId()
+	require.NoError(t, e.p.store.CreateMeeting(m))
+
+	e.api.On("HasPermissionToChannel", e.userID, channelID, model.PermissionReadChannel).Return(false)
+	w := e.request(t, http.MethodDelete, "/api/v1/meetings/"+m.ID, nil)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 // TestHandleEditMeetingAsOrganizer checks a successful edit: the SEQUENCE goes up, the post is
@@ -289,7 +397,7 @@ func TestSendMeetingInvites(t *testing.T) {
 	m.ChannelID = channelID
 	m.OrganizerID = organizer.Id
 
-	e.p.sendMeetingInvites(m, channel, organizer)
+	e.p.sendMeetingInvites(m, channel, organizer, organizer)
 
 	assert.Equal(t, "grace@example.com", sentTo, "only the member who connected a calendar account and opted in gets an email")
 	assert.Contains(t, sentSubject, m.Summary)

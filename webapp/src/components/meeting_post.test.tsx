@@ -43,6 +43,7 @@ function testMeeting(overrides: Partial<Meeting> = {}): Meeting {
         cancelled: false,
         created_at: Date.parse('2026-10-20T00:00:00Z'),
         updated_at: Date.parse('2026-10-20T00:00:00Z'),
+        can_cancel: true,
         ...overrides,
     };
 }
