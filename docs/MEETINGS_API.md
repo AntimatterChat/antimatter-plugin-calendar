@@ -3,7 +3,7 @@
 The routes the web app and the mobile app use for calls scheduled in a channel (F292). Everything is under
 `/plugins/com.antimatterchat.calendar/api/v1`, with the person's own session (the web app's cookie and CSRF header,
 or the mobile app's `Authorization: Bearer <token>`); the server passes their user ID to the app, and every route
-answers `401` without one.
+answers `401` without one. The one exception is the calendar feed (below), read by calendar apps with its own token.
 
 Times are milliseconds since the epoch (UTC); a call's `start` and `end` are kept to the whole second. IDs are the
 server's 26-character IDs. An error is `{"error": "<message>"}` with the status given below; the message is English,
@@ -196,6 +196,59 @@ within 7 days; cancelled calls and occurrences skipped. `{"next": null}` when th
 channel. Clients flip the chip on their own clock from `start` and `end` ("in N min" in the last hour, "Live" from
 `start`), and read this again when `end` passes (no sooner than a minute after the last read), on `meeting_changed`
 for the channel, and on a channel switch; no faster polling.
+
+### The caller's calendar feed — `GET /teams/{team_id}/feed` and `POST /teams/{team_id}/feed`
+
+The "Subscribe…" dialog of the Community calls layer. `404` when the "Allow calendar feeds" app setting is off
+(`calendar_feeds_enabled` in `GET /config` says so first), `400` for an invalid ID, `403` unless the caller is an
+active member of the community. Both answer with `Cache-Control: no-store`.
+
+`GET` says whether the caller has a feed of that community: `{"exists": true, "created_at": 1793000000000}`, or
+`{"exists": false}`. Its address is never shown again: only the SHA-256 of its token is kept.
+
+`POST` (no body) makes the caller a new feed of that community and revokes the one they had, at once ("Reset
+link"); `403` for a bot or a deactivated account. It answers with the only copy of the address:
+
+```json
+{"url": "https://chat.example.com/plugins/com.antimatterchat.calendar/feeds/<token>.ics",
+ "path": "/plugins/com.antimatterchat.calendar/feeds/<token>.ics",
+ "created_at": 1793000000000}
+```
+
+`url` is absent when the server has no Site URL; build it from the page's origin and `path` then.
+
+## The calendar feed — `GET /plugins/com.antimatterchat.calendar/feeds/{token}.ics`
+
+The ONLY route of this app that works without a session: calendar apps read it on their own, and the token (32
+random bytes, base64url) is its only credential. Anyone with the link sees what its member sees, so keep it private.
+`HEAD` works too.
+
+Every read checks everything again, from the token alone, as of now: the setting is on; the token is the member's
+current one for that community (not reset); the member exists, isn't deactivated and isn't a bot; they're still an
+active member of the community (not archived); and the calls are the ones `GET /meetings` would show them now (the
+same read rule: only channels they may read in that community). Any failure, an unknown token included, answers the
+same `404` with the same body (`Not found`, `text/plain`, `Cache-Control: no-store`), so none can be told apart.
+Leaving the community or being deactivated also deletes the member's feeds, so rejoining doesn't bring the old link
+back. A feed is read at most about 6 times a minute (a burst of 6, then one every 10 seconds, counted per server):
+`429` with `Retry-After` (seconds) past that. The token is never logged.
+
+`200` with `Content-Type: text/calendar; charset=utf-8`, `Cache-Control: private, max-age=900` and an `ETag` (a
+hash of the body); `If-None-Match` with it answers `304`. The body is an iCalendar object (no `METHOD`):
+
+- `X-WR-CALNAME` is the community's name; `REFRESH-INTERVAL;VALUE=DURATION:PT1H` and `X-PUBLISHED-TTL:PT1H`.
+- One `VEVENT` per call or series with an occurrence from 30 days ago to a year ahead, at most 500 (the earliest
+  kept). Cancelled calls are left out; a series' cancelled occurrences are `EXDATE`s.
+- `UID` is the call's iTIP UID (as in the invitation emails and `GET /meetings/{id}/ics`), with its `SEQUENCE`;
+  `DTSTAMP` is when the call last changed, so the body (and its `ETag`) changes only when the calls do.
+- A series is written in its time zone (`DTSTART;TZID=...`, with a `VTIMEZONE`), a one-off call in UTC; `RRULE`
+  as stored.
+- `SUMMARY`; `DESCRIPTION` is the call's description, its channel's name and the post's permalink, which is also
+  the `URL`.
+- `ORGANIZER` is the organiser's address only when the server shows email addresses, else the server's
+  notification address (as in the invitation emails).
+- The one `ATTENDEE` is the member, with their own `PARTSTAT` (for a series, their answer for the whole series);
+  the `VALARM` is their own reminder (their override, else the call's). Nobody else's address, answer or reminder
+  is ever in it.
 
 ## WebSocket: `custom_com.antimatterchat.calendar_meeting_changed`
 
