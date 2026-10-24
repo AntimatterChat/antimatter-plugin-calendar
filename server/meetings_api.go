@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -604,9 +605,32 @@ func (p *Plugin) updateMeetingPost(m *Meeting, organizer *model.User, message *i
 	}
 }
 
-// organizerInvitee returns an organiser as an iTIP party.
+// organizerInvitee returns an organiser as an iTIP party. Their own address is only given out
+// when the server shows email addresses (System Console > Privacy); otherwise the invitation
+// names them with the server's notification address, so no member learns it from an .ics.
 func (p *Plugin) organizerInvitee(organizer *model.User) invitee {
-	return invitee{Email: organizer.Email, Name: organizer.GetFullName()}
+	party := invitee{Email: organizer.Email, Name: organizer.GetFullName()}
+	cfg := p.API.GetConfig()
+	if cfg != nil && cfg.PrivacySettings.ShowEmailAddress != nil && *cfg.PrivacySettings.ShowEmailAddress {
+		return party
+	}
+	party.Email = serverMailAddress(cfg)
+	return party
+}
+
+// serverMailAddress is the address the server's own emails come from, or a no-reply address on
+// the site's host when none is set.
+func serverMailAddress(cfg *model.Config) string {
+	if cfg != nil && cfg.EmailSettings.FeedbackEmail != nil && *cfg.EmailSettings.FeedbackEmail != "" {
+		return *cfg.EmailSettings.FeedbackEmail
+	}
+	host := "localhost"
+	if cfg != nil && cfg.ServiceSettings.SiteURL != nil {
+		if u, err := url.Parse(*cfg.ServiceSettings.SiteURL); err == nil && u.Hostname() != "" {
+			host = u.Hostname()
+		}
+	}
+	return "noreply@" + host
 }
 
 // The messages of a meeting's post. Their translations are in assets/i18n.

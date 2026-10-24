@@ -369,6 +369,7 @@ func TestHandleMeetingICS(t *testing.T) {
 	e.api.On("GetChannel", channelID).Return(channel, nil)
 	e.api.On("GetUser", m.OrganizerID).Return(organizer, nil)
 	e.api.On("GetUser", e.userID).Return(viewer, nil)
+	e.api.On("GetConfig").Return(showEmailConfig(true))
 
 	w := e.request(t, http.MethodGet, "/api/v1/meetings/"+m.ID+"/ics", nil)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
@@ -409,6 +410,7 @@ func TestSendMeetingInvites(t *testing.T) {
 		{ChannelId: channelID, UserId: memberOptedOut},
 	}, nil)
 	e.api.On("GetUser", memberOptedIn).Return(&model.User{Id: memberOptedIn, Email: "grace@example.com", Username: "grace", Locale: "en"}, nil)
+	e.api.On("GetConfig").Return(showEmailConfig(true))
 
 	var sentTo, sentSubject, sentBody, sentAttachmentName, sentContentType string
 	var sentData []byte
@@ -437,6 +439,43 @@ func TestSendMeetingInvites(t *testing.T) {
 	assert.Contains(t, string(sentData), "METHOD:REQUEST")
 	assert.Contains(t, string(sentData), "mailto:grace@example.com")
 	assert.Contains(t, string(sentData), "mailto:ada@example.com")
+}
+
+// showEmailConfig is a server config that shows (or hides) email addresses, with a feedback
+// address for the server's own emails.
+func showEmailConfig(show bool) *model.Config {
+	feedback := "feedback@example.com"
+	return &model.Config{
+		PrivacySettings: model.PrivacySettings{ShowEmailAddress: &show},
+		EmailSettings:   model.EmailSettings{FeedbackEmail: &feedback},
+	}
+}
+
+// TestOrganizerInviteeHidesTheAddress checks the organiser's iTIP address: their own while the
+// server shows email addresses, otherwise the server's notification address (or a no-reply one on
+// the site's host), never theirs.
+func TestOrganizerInviteeHidesTheAddress(t *testing.T) {
+	organizer := &model.User{Id: model.NewId(), Username: "ada", FirstName: "Ada", Email: "ada@example.com"}
+	siteURL := "https://chat.example.org"
+	empty := ""
+	hidden := false
+	for name, tc := range map[string]struct {
+		cfg  *model.Config
+		want string
+	}{
+		"shown":                         {cfg: showEmailConfig(true), want: "ada@example.com"},
+		"hidden":                        {cfg: showEmailConfig(false), want: "feedback@example.com"},
+		"hidden, no feedback address":   {cfg: &model.Config{PrivacySettings: model.PrivacySettings{ShowEmailAddress: &hidden}, EmailSettings: model.EmailSettings{FeedbackEmail: &empty}, ServiceSettings: model.ServiceSettings{SiteURL: &siteURL}}, want: "noreply@chat.example.org"},
+		"no config (treated as hidden)": {cfg: nil, want: "noreply@localhost"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newMeetingTestEnv(t)
+			e.api.On("GetConfig").Return(tc.cfg)
+			party := e.p.organizerInvitee(organizer)
+			assert.Equal(t, tc.want, party.Email)
+			assert.Equal(t, organizer.GetFullName(), party.Name)
+		})
+	}
 }
 
 // TestMeetingViewNextOnlyRSVP checks the view's own-RSVP fields for a series: a "next call only"
