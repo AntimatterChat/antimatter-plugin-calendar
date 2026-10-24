@@ -243,9 +243,18 @@ func TestFeedContent(t *testing.T) {
 	_, err = f.p.store.CancelMeeting(cancelled.ID)
 	require.NoError(t, err)
 
-	w := f.fetch(t, f.createFeed(t))
+	path := f.createFeed(t)
+	w := f.fetch(t, path)
 	assert.Equal(t, "text/calendar; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Equal(t, "private, max-age=900", w.Header().Get("Cache-Control"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, strconv.Itoa(w.Body.Len()), w.Header().Get("Content-Length"))
+
+	head := httptest.NewRecorder()
+	f.p.ServeHTTP(nil, head, httptest.NewRequest(http.MethodHead, path, nil))
+	assert.Equal(t, http.StatusOK, head.Code)
+	assert.Empty(t, head.Body.Bytes(), "HEAD has no body")
+	assert.Equal(t, w.Header().Get("ETag"), head.Header().Get("ETag"))
 	cal := decodeFeed(t, w)
 	body := unfolded(w)
 
@@ -715,16 +724,6 @@ func TestFeedWindowAndCap(t *testing.T) {
 		assert.Len(t, events, maxFeedEntries)
 		assert.NotContains(t, events, meetingUID(last.ID), "the latest left out")
 	})
-}
-
-// TestEtagMatches checks the If-None-Match parsing.
-func TestEtagMatches(t *testing.T) {
-	assert.True(t, etagMatches(`"a"`, `"a"`))
-	assert.True(t, etagMatches(`W/"a"`, `"a"`))
-	assert.True(t, etagMatches(`"b", "a"`, `"a"`))
-	assert.True(t, etagMatches(`*`, `"a"`))
-	assert.False(t, etagMatches(``, `"a"`))
-	assert.False(t, etagMatches(`"b"`, `"a"`))
 }
 
 // TestValidFeedToken checks the token's shape: 43 base64url characters of 32 bytes.

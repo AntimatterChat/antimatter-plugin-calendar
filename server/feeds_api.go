@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"math"
@@ -191,32 +192,12 @@ func (p *Plugin) handleFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sum := sha256.Sum256(body)
-	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
-	w.Header().Set("Cache-Control", feedCacheControl)
-	w.Header().Set("ETag", etag)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if etagMatches(r.Header.Get("If-None-Match"), etag) {
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
 	w.Header().Set("Content-Type", feedContentType)
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(http.StatusOK)
-	if r.Method != http.MethodHead {
-		_, _ = w.Write(body)
-	}
-}
-
-// etagMatches returns whether an If-None-Match header names an ETag (weakly, as RFC 9110 has it
-// for If-None-Match).
-func etagMatches(header, etag string) bool {
-	for candidate := range strings.SplitSeq(header, ",") {
-		candidate = strings.TrimPrefix(strings.TrimSpace(candidate), "W/")
-		if candidate == "*" || candidate == etag {
-			return true
-		}
-	}
-	return false
+	w.Header().Set("Cache-Control", feedCacheControl)
+	w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:16])+`"`)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// ServeContent answers If-None-Match with 304 (against the ETag above), and HEAD without a body.
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
 }
 
 // buildFeed builds the calendar of a feed token's hash, for its member as of now; errFeedNotFound
@@ -309,9 +290,13 @@ func newFeedCalendar(name string) *ical.Calendar {
 	cal.Props.SetText(ical.PropVersion, "2.0")
 	cal.Props.SetText(ical.PropProductID, productID)
 	cal.Props.SetText(ical.PropCalendarScale, "GREGORIAN")
-	cal.Props.SetText("X-WR-CALNAME", name)
+	calName := ical.NewProp("X-WR-CALNAME")
+	calName.SetText(name)
+	calName.Params.Del(ical.ParamValue)
+	cal.Props.Set(calName)
+	// RFC 7986 requires VALUE=DURATION, which go-ical leaves out as the default type.
 	refresh := ical.NewProp("REFRESH-INTERVAL")
-	refresh.SetValueType(ical.ValueDuration)
+	refresh.Params.Set(ical.ParamValue, string(ical.ValueDuration))
 	refresh.Value = feedRefresh
 	cal.Props.Set(refresh)
 	setRaw(cal.Props, "X-PUBLISHED-TTL", feedRefresh)
