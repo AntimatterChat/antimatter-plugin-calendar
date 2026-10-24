@@ -478,6 +478,33 @@ func TestOrganizerInviteeHidesTheAddress(t *testing.T) {
 	}
 }
 
+// TestMeetingViewOnlyTheCallersOwn checks that a meeting's view carries the caller's own RSVP and
+// reminder choice and nobody else's, whoever asks (the organiser included).
+func TestMeetingViewOnlyTheCallersOwn(t *testing.T) {
+	e := newMeetingTestEnv(t)
+	channelID := model.NewId()
+	other := model.NewId()
+	m := testMeeting()
+	m.ChannelID = channelID
+	m.OrganizerID = e.userID
+	m.RSVPs = map[string]RSVP{e.userID: {Status: RSVPGoing}, other: {Status: RSVPNo}}
+	m.NextRSVPs = map[string]occurrenceRSVP{other: {RSVP: RSVP{Status: RSVPMaybe}, OccurrenceStart: m.Start}}
+	m.ReminderOverrides = map[string]int{e.userID: 60, other: 5}
+	require.NoError(t, e.p.store.CreateMeeting(m))
+	e.api.On("HasPermissionToChannel", e.userID, channelID, model.PermissionReadChannel).Return(true)
+
+	w := e.request(t, http.MethodGet, "/api/v1/meetings/"+m.ID, nil)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.NotContains(t, w.Body.String(), other, "no other member's id, answer or reminder is in the response")
+
+	view := decode[meetingView](t, w)
+	assert.Equal(t, map[string]RSVP{e.userID: {Status: RSVPGoing}}, view.RSVPs)
+	assert.Empty(t, view.NextRSVPs)
+	require.NotNil(t, view.MyReminderOverride)
+	assert.Equal(t, 60, *view.MyReminderOverride)
+	assert.Equal(t, RSVPGoing, view.MyRSVP)
+}
+
 // TestMeetingInvitesListOnlyTheirRecipient checks that every invitation, and every occurrence's
 // cancellation, lists its recipient alone as an attendee: no member's email address (or answer)
 // reaches another member through the .ics, whatever their privacy settings.

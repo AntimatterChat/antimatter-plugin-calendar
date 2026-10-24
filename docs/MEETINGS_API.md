@@ -39,7 +39,7 @@ A call scheduled for everyone in a channel. Its post in the channel (type `custo
   "created_at": 1793000000000,
   "updated_at": 1793100000000,
   "rsvps": {"u1b6...": {"status": "going", "updated_at": 1793000001000}},
-  "next_rsvps": {"u2c7...": {"status": "no", "updated_at": 1793000002000, "occurrence_start": 1794146400000}},
+  "next_rsvps": {"u1b6...": {"status": "no", "updated_at": 1793000002000, "occurrence_start": 1794146400000}},
   "my_rsvp": "going",
   "my_rsvp_next_only": false,
   "can_cancel": true
@@ -60,7 +60,8 @@ A call scheduled for everyone in a channel. Its post in the channel (type `custo
 - `reminder_minutes`: the call's own reminder, one of `-1` (none), `0` (at start), `5`, `10`, `15`, `30`, `60`,
   `1440`. `my_reminder_override`: the caller's own choice, absent for "Default" (the call's own). Nobody else's
   override is ever sent.
-- `rsvps`: each member's answer for the whole series; `next_rsvps`: answers for one occurrence only (`occurrence_start`).
+- `rsvps`: the caller's own answer for the whole series; `next_rsvps`: their answer for one occurrence only
+  (`occurrence_start`). Keyed by the caller's user id, and never anyone else's: nobody sees who else answered what.
   `my_rsvp`/`my_rsvp_next_only`: the caller's own effective answer for `next_start` (or `start`), and whether it's a
   next-only one. Both absent until they answer.
 - `can_cancel`: computed for the caller: the organiser, that channel's admins, that community's admins, system admins.

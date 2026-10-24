@@ -536,6 +536,7 @@ type meetingView struct {
 	CreatedAt int64 `json:"created_at"`
 	UpdatedAt int64 `json:"updated_at"`
 
+	// RSVPs and NextRSVPs hold the caller's own entry at most (see newMeetingView).
 	RSVPs     map[string]RSVP           `json:"rsvps,omitempty"`
 	NextRSVPs map[string]occurrenceRSVP `json:"next_rsvps,omitempty"`
 
@@ -564,8 +565,14 @@ func (p *Plugin) newMeetingView(callerID string, m *Meeting) *meetingView {
 		ReminderMinutes: m.meetingReminderMinutes(),
 		Sequence:        m.Sequence, Cancelled: m.Cancelled,
 		CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt,
-		RSVPs: m.RSVPs, NextRSVPs: m.NextRSVPs,
 		CanCancel: p.canCancelMeeting(callerID, m),
+	}
+	// Only the caller's own answers: who else answered what is never sent to anyone.
+	if rsvp, ok := m.RSVPs[callerID]; ok {
+		view.RSVPs = map[string]RSVP{callerID: rsvp}
+	}
+	if rsvp, ok := m.NextRSVPs[callerID]; ok {
+		view.NextRSVPs = map[string]occurrenceRSVP{callerID: rsvp}
 	}
 	if minutes, ok := m.ReminderOverrides[callerID]; ok {
 		view.MyReminderOverride = &minutes
