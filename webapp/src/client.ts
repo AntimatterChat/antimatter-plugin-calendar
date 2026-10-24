@@ -338,3 +338,18 @@ export function getCommunityCalls(teamId: string, from: Date, to: Date) {
         `/meetings?${query({team_id: teamId, from: from.getTime(), to: to.getTime()})}`,
     );
 }
+
+// NextCall is the call a channel's header shows: live now, or the next one within 7 days.
+export type NextCall = {
+    meeting_id: string;
+    post_id: string;
+    summary: string;
+    start: number;
+    end: number;
+    live: boolean;
+    recurring: boolean;
+};
+
+export async function getNextCall(channelId: string) {
+    return (await request<{next: NextCall | null}>('GET', `/channels/${channelId}/meetings/next`)).next;
+}

@@ -70,7 +70,9 @@ func TestHandleCreateMeeting(t *testing.T) {
 	})).Return(&model.Post{Id: model.NewId()}, nil)
 	// A new call tells the channel's open clients too (the header's next call, the community
 	// calendar), not only edits and RSVPs.
-	e.api.On("PublishWebSocketEvent", meetingChangedEvent, mock.Anything, &model.WebsocketBroadcast{ChannelId: channelID}).Return().Once()
+	e.api.On("PublishWebSocketEvent", meetingChangedEvent, mock.MatchedBy(func(data map[string]any) bool {
+		return data["channel_id"] == channelID && data["id"] != ""
+	}), &model.WebsocketBroadcast{ChannelId: channelID}).Return().Once()
 
 	start := time.Now().Add(time.Hour)
 	w := e.request(t, http.MethodPost, "/api/v1/channels/"+channelID+"/meetings", meetingBody(start))

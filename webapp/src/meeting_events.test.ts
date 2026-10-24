@@ -10,14 +10,14 @@ describe('meeting_events', () => {
         const unsubscribeA = onMeetingChanged(a);
         onMeetingChanged(b);
 
-        meetingChanged('meeting1');
-        expect(a).toHaveBeenCalledWith('meeting1');
-        expect(b).toHaveBeenCalledWith('meeting1');
+        meetingChanged('meeting1', 'channel1');
+        expect(a).toHaveBeenCalledWith('meeting1', 'channel1');
+        expect(b).toHaveBeenCalledWith('meeting1', 'channel1');
 
         unsubscribeA();
         meetingChanged('meeting2');
         expect(a).toHaveBeenCalledTimes(1);
         expect(b).toHaveBeenCalledTimes(2);
-        expect(b).toHaveBeenLastCalledWith('meeting2');
+        expect(b).toHaveBeenLastCalledWith('meeting2', '');
     });
 });

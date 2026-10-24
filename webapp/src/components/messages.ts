@@ -159,4 +159,10 @@ export const messages = defineMessages({
     // The "Community calls" layer of the calendar panel
     communityCalls: {id: 'calendar.community_calls', defaultMessage: 'Community calls', description: 'Name of the calendar panel\'s layer that shows the calls scheduled in the community\'s channels the person can read, toggled beside their own calendars.'},
     openCallPost: {id: 'calendar.community_calls.open', defaultMessage: 'Open the post of {title}', description: 'Accessible label of a community call in the calendar: opens the call\'s post in its channel.'},
+
+    // The next call in the channel header
+    nextCall: {id: 'calendar.next_call', defaultMessage: 'Next call: {when} · {title}', description: 'Chip in the channel header: the channel\'s next scheduled call, e.g. "Next call: Tue 14:00 · Weekly sync".'},
+    nextCallSoon: {id: 'calendar.next_call.soon', defaultMessage: 'Next call: in {minutes} min · {title}', description: 'Chip in the channel header, in the last hour before the channel\'s next scheduled call starts.'},
+    nextCallLive: {id: 'calendar.next_call.live', defaultMessage: 'Live · {title}', description: 'Chip in the channel header while the channel\'s scheduled call is on, beside a Join button.'},
+    nextCallOpen: {id: 'calendar.next_call.open', defaultMessage: 'Open the call’s post', description: 'Tooltip of the channel header\'s next call chip: clicking it opens the call\'s post.'},
 });

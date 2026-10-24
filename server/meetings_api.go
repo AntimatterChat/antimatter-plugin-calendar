@@ -480,9 +480,10 @@ func (p *Plugin) loadOrganizedMeeting(w http.ResponseWriter, r *http.Request) (*
 	return m, nil
 }
 
-// notifyMeetingChanged tells the channel's open clients to read a meeting again.
+// notifyMeetingChanged tells the channel's open clients to read a meeting again. It names the
+// channel too, so a client showing another channel's next call needn't read anything.
 func (p *Plugin) notifyMeetingChanged(m *Meeting) {
-	p.API.PublishWebSocketEvent(meetingChangedEvent, map[string]any{"id": m.ID}, &model.WebsocketBroadcast{ChannelId: m.ChannelID})
+	p.API.PublishWebSocketEvent(meetingChangedEvent, map[string]any{"id": m.ID, "channel_id": m.ChannelID}, &model.WebsocketBroadcast{ChannelId: m.ChannelID})
 }
 
 // sendInvitesAsync starts sending a meeting's iTIP email invitations, off the request. A test

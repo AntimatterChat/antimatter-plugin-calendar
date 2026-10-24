@@ -4,6 +4,7 @@
 import type React from 'react';
 import type {AnyAction, Store} from 'redux';
 
+import type {Channel} from '@mattermost/types/channels';
 import type {Post} from '@mattermost/types/posts';
 import type {GlobalState} from '@mattermost/types/store';
 
@@ -24,6 +25,12 @@ export interface PluginRegistry {
     // The channel's "..." menu: where "Schedule a call" lives (there's no channel call button of
     // the calendar's own to add it to; see components/schedule_call.tsx).
     registerChannelHeaderMenuAction(text: React.ReactNode, action: (channelId: string) => void, shouldRender?: (state: GlobalState) => boolean): string;
+
+    // The channel header's next call: Fusion's place for apps' chips beside the conversation's
+    // name (absent from older Fusions and from the classic web app), and the classic header's
+    // place for apps beside the channel's name. Both pass the channel.
+    registerChannelHeaderChip?(component: React.ComponentType<{channel?: Channel}>): string;
+    registerChannelHeaderIcon?(component: React.ComponentType<{channel?: Channel}>): string;
 
     // The scheduling dialog, and the meeting post's buttons, are both rendered this way.
     registerRootComponent(component: React.ComponentType): string;

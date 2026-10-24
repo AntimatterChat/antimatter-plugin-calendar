@@ -739,3 +739,62 @@
     font: inherit;
     color-scheme: inherit;
 }
+
+/*
+ * The channel header's next call. Under Fusion its chips are Fusion's am-head-chip (beside the
+ * conversation's name); these are the classic header's equivalents.
+ */
+.amc-next-call {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    vertical-align: middle;
+}
+
+.amc-next-call .amc-head-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 300px;
+    height: 22px;
+    margin: 0 0 0 6px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--amc-raise);
+    color: var(--amc-text-2);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.amc-next-call .amc-head-chip > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.amc-next-call .amc-head-chip:hover {
+    background: var(--amc-hover);
+    color: var(--amc-text);
+}
+
+.amc-next-call .amc-head-chip.amc-live {
+    background: color-mix(in srgb, var(--amc-ok) 18%, transparent);
+    color: var(--amc-ok);
+}
+
+.amc-next-call .amc-head-chip + .amc-head-chip {
+    margin-left: 0;
+}
+
+.amc-live-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}

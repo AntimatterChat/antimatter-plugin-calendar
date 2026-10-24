@@ -9,12 +9,14 @@ import {Client4} from 'mattermost-redux/client';
 import CalendarPanel from './components/calendar_panel';
 import {messages} from './components/messages';
 import MeetingPost from './components/meeting_post';
+import NextCallChip from './components/next_call_chip';
 import ScheduleCallDialogRoot from './components/schedule_call_dialog';
 import manifest from './manifest';
 import {meetingChanged} from './meeting_events';
 import {openScheduleCallDialog} from './schedule_call';
 import type {PluginClass, PluginRegistry, PluginStore} from './types/host';
 import {registerTranslations} from './translations';
+import {isFusionUI} from './web_ui';
 
 import './styles.css';
 
@@ -64,9 +66,18 @@ export default class Plugin implements PluginClass {
         registry.registerPostTypeComponent(MEETING_POST_TYPE, MeetingPost);
         registry.registerWebSocketEventHandler(`custom_${manifest.id}_meeting_changed`, (msg) => {
             if (typeof msg.data.id === 'string') {
-                meetingChanged(msg.data.id);
+                meetingChanged(msg.data.id, typeof msg.data.channel_id === 'string' ? msg.data.channel_id : '');
             }
         });
+
+        // The channel's next call, in its header: Fusion's place for apps' chips beside the
+        // conversation's name, or the classic header's place for apps beside the channel's name.
+        // A Fusion without that place gets no chip (its other header place is for icon buttons).
+        if (isFusionUI()) {
+            registry.registerChannelHeaderChip?.(NextCallChip);
+        } else {
+            registry.registerChannelHeaderIcon?.(NextCallChip);
+        }
     }
 }
 
