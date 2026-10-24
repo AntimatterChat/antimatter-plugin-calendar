@@ -72,10 +72,7 @@ export default function NextCallChip({channel}: Props) {
         }
     }), [load, channelId]);
     useEffect(() => {
-        if (!eligible) {
-            return undefined;
-        }
-        const interval = window.setInterval(load, REFRESH_MS);
+        const interval = eligible ? window.setInterval(load, REFRESH_MS) : 0;
         return () => window.clearInterval(interval);
     }, [load, eligible]);
 
@@ -83,15 +80,13 @@ export default function NextCallChip({channel}: Props) {
     // over reads the next one (no sooner than a minute after the last read).
     useEffect(() => {
         const delay = nextFlip(next, now);
+        let timer = 0;
         if (delay !== null) {
-            const timer = window.setTimeout(() => setNow(Date.now()), delay);
-            return () => window.clearTimeout(timer);
+            timer = window.setTimeout(() => setNow(Date.now()), delay);
+        } else if (next) {
+            timer = window.setTimeout(load, Math.max(0, (lastFetch.current + MIN_FETCH_GAP_MS) - Date.now()));
         }
-        if (next) {
-            const timer = window.setTimeout(load, Math.max(0, (lastFetch.current + MIN_FETCH_GAP_MS) - Date.now()));
-            return () => window.clearTimeout(timer);
-        }
-        return undefined;
+        return () => window.clearTimeout(timer);
     }, [next, now, load]);
 
     const state = chipState(next, now);

@@ -131,7 +131,7 @@ describe('CalendarPanel', () => {
     });
 
     describe('the community\'s calls', () => {
-        const inAnHour = Date.now() + 60 * 60000;
+        const inAnHour = Date.now() + (60 * 60000);
         const call = (overrides: Partial<CommunityCall> = {}): CommunityCall => ({
             meeting_id: 'meeting1',
             post_id: 'post1',
@@ -142,7 +142,7 @@ describe('CalendarPanel', () => {
             organizer_id: 'organizer1',
             summary: 'Standup sync',
             start: inAnHour,
-            end: inAnHour + 30 * 60000,
+            end: inAnHour + (30 * 60000),
             recurring: false,
             my_rsvp: 'going',
             ...overrides,
@@ -214,10 +214,13 @@ describe('CalendarPanel', () => {
                 join: jest.fn(),
             };
             const now = Date.now();
-            mocked.getCommunityCalls.mockResolvedValue({occurrences: [
-                call(),
-                call({meeting_id: 'meeting2', post_id: 'post2', summary: 'Live review', start: now - 10 * 60000, end: now + 20 * 60000}),
-            ], truncated: false});
+            mocked.getCommunityCalls.mockResolvedValue({
+                occurrences: [
+                    call(),
+                    call({meeting_id: 'meeting2', post_id: 'post2', summary: 'Live review', start: now - (10 * 60000), end: now + (20 * 60000)}),
+                ],
+                truncated: false,
+            });
             renderPanel();
             await screen.findByText('Live review');
 

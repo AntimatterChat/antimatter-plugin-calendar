@@ -31,7 +31,7 @@ const call = (start: number, overrides: Partial<NextCall> = {}): NextCall => ({
     post_id: 'post1',
     summary: 'Weekly sync',
     start,
-    end: start + 30 * MIN,
+    end: start + (30 * MIN),
     live: false,
     recurring: false,
     ...overrides,
@@ -137,7 +137,7 @@ describe('NextCallChip', () => {
     });
 
     test('live without the Calls app: the chip, but no Join', async () => {
-        mocked.getNextCall.mockResolvedValue(call(NOW - 5 * MIN, {live: true}));
+        mocked.getNextCall.mockResolvedValue(call(NOW - (5 * MIN), {live: true}));
         renderChip();
         await flush();
         expect(screen.getByRole('button', {name: 'Live · Weekly sync'})).toBeInTheDocument();
@@ -149,7 +149,7 @@ describe('NextCallChip', () => {
         mocked.getNextCall.mockReturnValueOnce(new Promise((resolve) => {
             answerFirst = resolve;
         }));
-        mocked.getNextCall.mockResolvedValueOnce(call(NOW + 3 * 60 * MIN, {summary: 'Other channel\'s call'}));
+        mocked.getNextCall.mockResolvedValueOnce(call(NOW + (3 * 60 * MIN), {summary: 'Other channel\'s call'}));
         const {rerender} = renderChip();
 
         rerender(
@@ -161,7 +161,7 @@ describe('NextCallChip', () => {
         expect(mocked.getNextCall).toHaveBeenLastCalledWith('channel2');
 
         // The first channel's answer arrives late: ignored.
-        answerFirst(call(NOW + 60 * MIN * 2, {summary: 'First channel\'s call'}));
+        answerFirst(call(NOW + (60 * MIN * 2), {summary: 'First channel\'s call'}));
         await flush();
         expect(screen.getByRole('button', {name: /Other channel's call$/})).toBeInTheDocument();
         expect(screen.queryByRole('button', {name: /First channel's call$/})).not.toBeInTheDocument();
@@ -173,7 +173,7 @@ describe('NextCallChip', () => {
         await flush();
         expect(mocked.getNextCall).toHaveBeenCalledTimes(1);
 
-        mocked.getNextCall.mockResolvedValue(call(NOW + 3 * 60 * MIN));
+        mocked.getNextCall.mockResolvedValue(call(NOW + (3 * 60 * MIN)));
         act(() => meetingChanged('meeting1', 'channel1'));
         await flush();
         expect(mocked.getNextCall).toHaveBeenCalledTimes(2);
@@ -199,7 +199,7 @@ describe('NextCallChip', () => {
 
     test('a call that ended just after it was read waits a minute before reading the next', async () => {
         // The server and this clock disagree: the call it returned is already over here.
-        mocked.getNextCall.mockResolvedValue(call(NOW - 31 * MIN));
+        mocked.getNextCall.mockResolvedValue(call(NOW - (31 * MIN)));
         renderChip();
         await flush();
         expect(mocked.getNextCall).toHaveBeenCalledTimes(1);

@@ -17,7 +17,7 @@ export const REFRESH_MS = 15 * 60000;
 export const MIN_FETCH_GAP_MS = 60000;
 
 // setTimeout's longest delay; the chip only ever waits up to 7 days, well within it.
-const MAX_DELAY = 2 ** 31 - 1;
+const MAX_DELAY = (2 ** 31) - 1;
 
 export type ChipState =
     {kind: 'hidden'} |

@@ -49,7 +49,7 @@ function openChannel(link: EventLink, teamName: string) {
 // useMeeting returns how to join the channel, voice channel or call an event is linked to: with
 // the Voice channels plugin for voice channels, the Calls plugin for calls, or by opening the
 // channel otherwise.
-export function useMeeting(link: EventLink | undefined, title: string): Meeting | null {
+export function useMeeting(link: EventLink | null | undefined, title: string): Meeting | null {
     const {formatMessage} = useIntl();
     const {calls, voice} = useMeetingAPIs();
     const channelId = link?.channel_id || '';

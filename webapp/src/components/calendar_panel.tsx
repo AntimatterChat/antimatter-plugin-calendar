@@ -58,6 +58,8 @@ export const APP_COLOR = '#FB7185';
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 const CLOCK_INTERVAL = 60 * 1000;
 
+const increment = (n: number) => n + 1;
+
 function range(mode: Mode, day: Date): [Date, Date] {
     if (mode === 'week') {
         const start = startOfWeek(day);
@@ -142,7 +144,7 @@ export default function CalendarPanel() {
 
     // The community's calls, read for the same days as the events, and again whenever the server
     // says a call changed.
-    useEffect(() => onMeetingChanged(() => setCallsChanged((n) => n + 1)), []);
+    useEffect(() => onMeetingChanged(() => setCallsChanged(increment)), []);
     useEffect(() => {
         let cancelled = false;
         let interval = 0;

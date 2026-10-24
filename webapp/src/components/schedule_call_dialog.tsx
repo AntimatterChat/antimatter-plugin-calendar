@@ -81,8 +81,8 @@ function ScheduleCallForm({target, onDone}: FormProps) {
     const {formatMessage, locale} = intl;
     const {meeting} = target;
 
-    const initialStart = meeting ? new Date(meeting.start) : roundToQuarterHour(new Date(Date.now() + DEFAULT_LEAD_MINUTES * 60000));
-    const initialEnd = meeting ? new Date(meeting.end) : new Date(initialStart.getTime() + DEFAULT_DURATION_MINUTES * 60000);
+    const initialStart = meeting ? new Date(meeting.start) : roundToQuarterHour(new Date(Date.now() + (DEFAULT_LEAD_MINUTES * 60000)));
+    const initialEnd = meeting ? new Date(meeting.end) : new Date(initialStart.getTime() + (DEFAULT_DURATION_MINUTES * 60000));
 
     const [summary, setSummary] = useState(meeting?.summary || '');
     const [description, setDescription] = useState(meeting?.description || '');
@@ -164,6 +164,11 @@ function ScheduleCallForm({target, onDone}: FormProps) {
             setSaving(false);
         }
     };
+
+    let submitLabel = meeting ? messages.save : messages.scheduleCallSubmit;
+    if (saving) {
+        submitLabel = messages.saving;
+    }
 
     return (
         <div
@@ -438,7 +443,7 @@ function ScheduleCallForm({target, onDone}: FormProps) {
                             className={am('btn', 'primary')}
                             disabled={saving}
                         >
-                            {formatMessage(saving ? messages.saving : (meeting ? messages.save : messages.scheduleCallSubmit))}
+                            {formatMessage(submitLabel)}
                         </button>
                     </div>
                 </div>

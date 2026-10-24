@@ -81,7 +81,7 @@ export default function MeetingPost({post}: Props) {
     }, [answeredNextOnly]);
 
     const title = meeting?.summary || formatMessage(messages.untitled);
-    const link = meeting ? {channel_id: meeting.channel_id, kind: 'call' as const, channel_name: channel?.name, display_name: channel?.display_name, channel_type: channel?.type} : undefined;
+    const link = meeting ? {channel_id: meeting.channel_id, kind: 'call' as const, channel_name: channel?.name, display_name: channel?.display_name, channel_type: channel?.type} : null;
     const call = useMeeting(link, title);
 
     if (!meetingId) {
@@ -242,7 +242,7 @@ export default function MeetingPost({post}: Props) {
                         <button
                             type='button'
                             className={am('btn', 'danger')}
-                            aria-expanded={recurring ? choosingCancel : undefined}
+                            {...(recurring ? {'aria-expanded': choosingCancel} : {})}
                             onClick={() => (recurring ? setChoosingCancel(!choosingCancel) : cancel('series'))}
                         >
                             {formatMessage(messages.cancelCall)}
