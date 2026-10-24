@@ -29,8 +29,6 @@ func testMeeting() *Meeting {
 	}
 }
 
-func intp(n int) *int { return &n }
-
 func TestStoreMeetingCreateAndGet(t *testing.T) {
 	store, _ := newTestStore(t)
 
@@ -252,7 +250,7 @@ func TestMeetingReminderMinutesDefault(t *testing.T) {
 	assert.Equal(t, defaultReminderMinutes, m.meetingReminderMinutes())
 	assert.Equal(t, defaultReminderMinutes, m.effectiveReminderMinutes("user1"))
 
-	m.ReminderMinutes = intp(30)
+	m.ReminderMinutes = new(30)
 	assert.Equal(t, 30, m.meetingReminderMinutes())
 	assert.Equal(t, 30, m.effectiveReminderMinutes("user1"), "a member without an override uses the meeting's setting")
 

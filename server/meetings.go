@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -49,12 +50,7 @@ const (
 var reminderChoicesMinutes = []int{noReminderMinutes, 0, 5, 10, 15, 30, 60, 1440}
 
 func validReminderMinutes(minutes int) bool {
-	for _, choice := range reminderChoicesMinutes {
-		if choice == minutes {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(reminderChoicesMinutes, minutes)
 }
 
 // RSVPStatus is how a member answered an invitation to a scheduled meeting (or one occurrence of
@@ -231,10 +227,7 @@ func meetingTTL(endMillis int64) int64 {
 	if endMillis == 0 {
 		return 0
 	}
-	ttl := time.Until(time.UnixMilli(endMillis).Add(meetingKeepAfter))
-	if ttl < meetingMinTTL {
-		ttl = meetingMinTTL
-	}
+	ttl := max(time.Until(time.UnixMilli(endMillis).Add(meetingKeepAfter)), meetingMinTTL)
 	return int64(ttl / time.Second)
 }
 
@@ -347,10 +340,8 @@ func (s *Store) ListMeetingIDs() ([]string, error) {
 // addToTeamIndex adds a meeting to its community's index, if it isn't there yet.
 func (s *Store) addToTeamIndex(teamID, meetingID string) error {
 	return s.updateTeamIndex(teamID, func(ids []string) []string {
-		for _, id := range ids {
-			if id == meetingID {
-				return ids
-			}
+		if slices.Contains(ids, meetingID) {
+			return ids
 		}
 		return append(ids, meetingID)
 	})
@@ -558,10 +549,8 @@ func (s *Store) CancelOccurrence(meetingID string, occurrenceStart int64) (*Meet
 		if m.Cancelled {
 			return errMeetingCancelled
 		}
-		for _, existing := range m.ExceptionDates {
-			if existing == occurrenceStart {
-				return nil
-			}
+		if slices.Contains(m.ExceptionDates, occurrenceStart) {
+			return nil
 		}
 		m.ExceptionDates = append(m.ExceptionDates, occurrenceStart)
 		m.Sequence++

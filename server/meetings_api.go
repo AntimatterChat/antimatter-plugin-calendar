@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"html"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -208,13 +209,13 @@ func (p *Plugin) handleEditMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in meetingInput
-	if err := readJSON(w, r, &in); err != nil {
+	if err = readJSON(w, r, &in); err != nil {
 		p.writeError(w, err)
 		return
 	}
 	in.Summary, in.Description = strings.TrimSpace(in.Summary), strings.TrimSpace(in.Description)
 	in.Start, in.End = wholeSeconds(in.Start), wholeSeconds(in.End)
-	if err := validateMeetingInput(in.Summary, in.Description, time.UnixMilli(in.Start), time.UnixMilli(in.End)); err != nil {
+	if err = validateMeetingInput(in.Summary, in.Description, time.UnixMilli(in.Start), time.UnixMilli(in.End)); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -222,7 +223,7 @@ func (p *Plugin) handleEditMeeting(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, newAPIError(http.StatusBadRequest, "invalid reminder"))
 		return
 	}
-	if _, err := parseRecurrenceRule(in.RecurrenceRule, time.UnixMilli(in.Start)); err != nil {
+	if _, err = parseRecurrenceRule(in.RecurrenceRule, time.UnixMilli(in.Start)); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -353,7 +354,7 @@ func (p *Plugin) handleSetRSVP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in rsvpInput
-	if err := readJSON(w, r, &in); err != nil {
+	if err = readJSON(w, r, &in); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -395,7 +396,7 @@ func (p *Plugin) handleSetReminderOverride(w http.ResponseWriter, r *http.Reques
 	}
 
 	var in reminderOverrideInput
-	if err := readJSON(w, r, &in); err != nil {
+	if err = readJSON(w, r, &in); err != nil {
 		p.writeError(w, err)
 		return
 	}
@@ -743,9 +744,7 @@ func (p *Plugin) meetingMessage(m *Meeting, organizer *model.User, template *i18
 	}
 	when := meetingWhen(t, time.UnixMilli(start).In(loc), time.UnixMilli(end).In(loc))
 	data := map[string]any{"Summary": escapeMarkdown(m.Summary), "When": when}
-	for k, v := range extra {
-		data[k] = v
-	}
+	maps.Copy(data, extra)
 	return t.T(template, data)
 }
 
