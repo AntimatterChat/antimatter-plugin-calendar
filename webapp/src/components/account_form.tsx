@@ -29,6 +29,7 @@ export default function AccountForm({account, remindersEnabled, onSaved, onCance
     const [username, setUsername] = useState(account?.username || '');
     const [password, setPassword] = useState('');
     const [remind, setRemind] = useState(account ? account.remind_minutes : 10);
+    const [emailInvites, setEmailInvites] = useState(account ? account.email_invites : false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -45,7 +46,7 @@ export default function AccountForm({account, remindersEnabled, onSaved, onCance
         setSaving(true);
         setError('');
         try {
-            onSaved(await client.saveAccount({url: url.trim(), username: username.trim(), password, remind_minutes: remind}));
+            onSaved(await client.saveAccount({url: url.trim(), username: username.trim(), password, remind_minutes: remind, email_invites: emailInvites}));
         } catch (err) {
             setError((err as Error).message);
         } finally {
@@ -151,6 +152,15 @@ export default function AccountForm({account, remindersEnabled, onSaved, onCance
                 </select>
                 <small>{formatMessage(remindersEnabled ? messages.remindHelp : messages.remindersOff)}</small>
             </label>
+            <label className={own('check')}>
+                <input
+                    type='checkbox'
+                    checked={emailInvites}
+                    onChange={(e) => setEmailInvites(e.target.checked)}
+                />
+                {formatMessage(messages.emailInvites)}
+            </label>
+            <small>{formatMessage(messages.emailInvitesHelp)}</small>
             {error && <div className={own('error')}>{error}</div>}
             <small className={own('note')}>{formatMessage(messages.passwordStored)}</small>
             <div className={own('actions')}>

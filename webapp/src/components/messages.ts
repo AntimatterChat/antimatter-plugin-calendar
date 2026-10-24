@@ -21,6 +21,8 @@ export const messages = defineMessages({
     remind: {id: 'calendar.settings.remind', defaultMessage: 'Remind me of events without alarms'},
     remindHelp: {id: 'calendar.settings.remind.help', defaultMessage: 'The Calendar bot sends you a direct message before your events.'},
     remindersOff: {id: 'calendar.settings.reminders_off', defaultMessage: 'Reminders are turned off on this server.'},
+    emailInvites: {id: 'calendar.settings.email_invites', defaultMessage: 'Also email me calendar invites', description: 'Checkbox: whether to also send the person an iTIP email invitation (with a calendar file attached) for calls scheduled in channels they are in, as well as showing them in the channel.'},
+    emailInvitesHelp: {id: 'calendar.settings.email_invites.help', defaultMessage: 'For calls scheduled in your channels, sent to this account’s email address.', description: 'Helper text under the "Also email me calendar invites" checkbox, explaining what it does.'},
     connect: {id: 'calendar.settings.connect', defaultMessage: 'Connect'},
     connecting: {id: 'calendar.settings.connecting', defaultMessage: 'Looking for your calendars…'},
     disconnect: {id: 'calendar.settings.disconnect', defaultMessage: 'Disconnect'},
@@ -94,4 +96,28 @@ export const messages = defineMessages({
     readOnly: {id: 'calendar.editor.read_only', defaultMessage: 'This calendar is read-only.'},
     saving: {id: 'calendar.editor.saving', defaultMessage: 'Saving…'},
     edit: {id: 'calendar.edit', defaultMessage: 'Edit {title}'},
+
+    // Scheduling a call for a channel (the channel's "..." menu)
+    scheduleCallMenuItem: {id: 'calendar.schedule_call.menu_item', defaultMessage: 'Schedule a call', description: 'Entry of the channel\'s "..." menu that opens the dialog to schedule a call for everyone in the channel.'},
+    scheduleCallTitle: {id: 'calendar.schedule_call.title', defaultMessage: 'Schedule a call'},
+    editCallTitle: {id: 'calendar.schedule_call.edit_title', defaultMessage: 'Edit the call'},
+    scheduleCallLead: {id: 'calendar.schedule_call.lead', defaultMessage: 'Everyone in this channel sees it as a post, with reminders before it starts, and gets an email invitation if they chose to.', description: 'Sentence under the title of the "Schedule a call" dialog, explaining what scheduling a call does.'},
+    scheduleCallPlaceholder: {id: 'calendar.schedule_call.placeholder', defaultMessage: 'Weekly sync', description: 'Placeholder text of the title field of the "Schedule a call" dialog, an example of a call\'s title.'},
+    scheduleCallSubmit: {id: 'calendar.schedule_call.submit', defaultMessage: 'Schedule'},
+    scheduleCallEndAfterStart: {id: 'calendar.schedule_call.end_after_start', defaultMessage: 'The call must end after it starts.'},
+    scheduleCallMissing: {id: 'calendar.schedule_call.missing', defaultMessage: 'This call can’t be shown.', description: 'Shown instead of a meeting post whose meeting ID is missing or unreadable; should not normally happen.'},
+
+    // The meeting post
+    scheduleCallWhen: {id: 'calendar.schedule_call.when', defaultMessage: '{start} · {startTime}–{endTime}', description: 'The date and time range shown on a scheduled call\'s post, e.g. "Mon, 27 Oct · 14:00–14:30".'},
+    addToCalendar: {id: 'calendar.schedule_call.add_to_calendar', defaultMessage: 'Add to calendar'},
+    rsvpQuestion: {id: 'calendar.schedule_call.rsvp_question', defaultMessage: 'Are you going?', description: 'Accessible label of the group of RSVP buttons (Going / Maybe / No) on a scheduled call\'s post.'},
+    rsvpGoing: {id: 'calendar.schedule_call.rsvp.going', defaultMessage: 'Going'},
+    rsvpMaybe: {id: 'calendar.schedule_call.rsvp.maybe', defaultMessage: 'Maybe'},
+    rsvpNo: {id: 'calendar.schedule_call.rsvp.no', defaultMessage: 'No'},
+    editCall: {id: 'calendar.schedule_call.edit', defaultMessage: 'Edit', description: 'Button on a scheduled call\'s post, shown to its organiser only, that opens the "Schedule a call" dialog again to change it.'},
+    cancelCall: {id: 'calendar.schedule_call.cancel', defaultMessage: 'Cancel the call', description: 'Button on a scheduled call\'s post, shown to its organiser only, that cancels it.'},
+    cancelCallConfirm: {id: 'calendar.schedule_call.cancel.confirm', defaultMessage: 'Cancel this call?', description: 'Title of the dialog that asks the organiser to confirm cancelling a scheduled call.'},
+    cancelCallLead: {id: 'calendar.schedule_call.cancel.lead', defaultMessage: 'Its post is updated, and the members who were emailed an invitation get a cancellation.', description: 'Sentence under the title of the dialog that asks before cancelling a scheduled call.'},
+    cancelCallConfirmButton: {id: 'calendar.schedule_call.cancel.confirm_button', defaultMessage: 'Cancel the call'},
+    callCancelledBadge: {id: 'calendar.schedule_call.cancelled_badge', defaultMessage: 'Cancelled', description: 'Short badge shown on a scheduled call\'s post once its organiser has cancelled it.'},
 });

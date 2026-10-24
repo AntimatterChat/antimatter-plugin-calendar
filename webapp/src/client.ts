@@ -9,6 +9,7 @@ export type Account = {
     url: string;
     username: string;
     remind_minutes: number;
+    email_invites: boolean;
 };
 
 export type AccountRequest = Account & {
@@ -201,4 +202,65 @@ export function updateEvent(path: string, etag: string, input: EventInput, occur
 // ones.
 export function deleteEvent(path: string, etag: string, occurrence = 0, scope: Scope = 'this') {
     return request<unknown>('DELETE', `/event?${query({path, etag, tz: timeZone(), ...occurrenceParams(occurrence, scope)})}`);
+}
+
+export type RSVPStatus = 'going' | 'maybe' | 'no';
+
+export type RSVP = {
+    status: RSVPStatus;
+    updated_at: number;
+};
+
+// Meeting is a call scheduled for everyone in a channel: see the server's meetings.go.
+export type Meeting = {
+    id: string;
+    channel_id: string;
+    post_id: string;
+    organizer_id: string;
+    summary: string;
+    description?: string;
+    // start and end are in milliseconds.
+    start: number;
+    end: number;
+    sequence: number;
+    cancelled: boolean;
+    created_at: number;
+    updated_at: number;
+    rsvps?: Record<string, RSVP>;
+};
+
+export type MeetingInput = {
+    summary: string;
+    description: string;
+    start: number;
+    end: number;
+};
+
+// scheduleCall schedules a call for everyone in a channel: a post with a Join button, reminders,
+// and iTIP email invitations to the members who want them.
+export function scheduleCall(channelId: string, input: MeetingInput) {
+    return request<Meeting>('POST', `/channels/${channelId}/meetings`, input);
+}
+
+export function getMeeting(id: string) {
+    return request<Meeting>('GET', `/meetings/${id}`);
+}
+
+// updateMeeting applies the organiser's edit, re-sending iTIP updates.
+export function updateMeeting(id: string, input: MeetingInput) {
+    return request<Meeting>('PUT', `/meetings/${id}`, input);
+}
+
+// cancelMeeting cancels a meeting, sending iTIP cancellations.
+export function cancelMeeting(id: string) {
+    return request<unknown>('DELETE', `/meetings/${id}`);
+}
+
+export function setRSVP(id: string, status: RSVPStatus) {
+    return request<Meeting>('POST', `/meetings/${id}/rsvp`, {status});
+}
+
+// meetingICSURL is the "add to calendar" download of a meeting's current invitation.
+export function meetingICSURL(id: string) {
+    return apiURL(`/meetings/${id}/ics`);
 }

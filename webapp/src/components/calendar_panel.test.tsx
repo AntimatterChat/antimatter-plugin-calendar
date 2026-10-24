@@ -45,7 +45,7 @@ const ICON_BUTTONS = ['New event', 'Refresh', 'Account settings', 'Previous', 'N
 
 describe('CalendarPanel', () => {
     beforeEach(() => {
-        mocked.getAccount.mockResolvedValue({url: 'https://dav.example.com/', username: 'maya', remind_minutes: 10});
+        mocked.getAccount.mockResolvedValue({url: 'https://dav.example.com/', username: 'maya', remind_minutes: 10, email_invites: false});
         mocked.getConfig.mockResolvedValue({reminders_enabled: true, allow_insecure_connections: false});
         mocked.getCalendars.mockResolvedValue([{id: '/cal/work/', name: 'Work', read_only: false}]);
         mocked.getEvents.mockResolvedValue({events: [], errors: []});

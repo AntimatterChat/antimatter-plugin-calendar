@@ -523,3 +523,116 @@
     color: var(--amc-muted);
     font-size: 12px;
 }
+
+/*
+ * The "Schedule a call" dialog and a meeting post's RSVP: Fusion has am-scrim/am-modal/am-pane
+ * already (its own mockup's dialogs); these are the classic equivalents, portaled straight into
+ * <body> (there's no classic layer to use), so they bring their own position: fixed and can't
+ * rely on .amc-root's height: 100% for sizing.
+ */
+.amc-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.amc-modal {
+    width: 480px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: var(--center-channel-bg, #fff);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+}
+
+.amc-modal.amc-small {
+    width: 420px;
+}
+
+.amc-pane {
+    display: grid;
+    gap: 12px;
+    padding: 20px;
+}
+
+.amc-pane h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--amc-text);
+}
+
+.amc-lead {
+    margin: 0;
+    color: var(--amc-muted);
+    font-size: 13.5px;
+}
+
+.amc-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+/* The meeting post: time, Join, RSVP and the organiser's own actions */
+.amc-meeting {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--amc-line);
+    border-radius: 10px;
+    background: var(--amc-side);
+    max-width: 480px;
+}
+
+.amc-meeting.amc-cancelled .amc-meeting-title {
+    text-decoration: line-through;
+    color: var(--amc-muted);
+}
+
+.amc-meeting-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.amc-meeting-title {
+    font-weight: 600;
+    font-size: 14.5px;
+}
+
+.amc-meeting-when,
+.amc-meeting-desc {
+    color: var(--amc-text-2);
+    font-size: 13.5px;
+}
+
+.amc-meeting-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.amc-rsvp-group {
+    display: flex;
+    gap: 6px;
+}
+
+.amc-root .amc-chip-btn.amc-on {
+    background: var(--amc-accent);
+    color: var(--amc-accent-text);
+}
+
+.amc-meeting-cancelled-note {
+    color: var(--amc-danger);
+    font-size: 13px;
+    font-weight: 600;
+}

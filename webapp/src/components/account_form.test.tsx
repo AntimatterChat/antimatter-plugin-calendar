@@ -31,7 +31,7 @@ function renderForm() {
     render(
         <IntlProvider locale='en'>
             <AccountForm
-                account={{url: 'https://dav.example.com/', username: 'maya', remind_minutes: 10}}
+                account={{url: 'https://dav.example.com/', username: 'maya', remind_minutes: 10, email_invites: false}}
                 remindersEnabled={true}
                 onSaved={jest.fn()}
                 onCancel={null}

@@ -4,6 +4,7 @@
 import type React from 'react';
 import type {AnyAction, Store} from 'redux';
 
+import type {Post} from '@mattermost/types/posts';
 import type {GlobalState} from '@mattermost/types/store';
 
 import type {WebUI} from '../web_ui';
@@ -19,6 +20,15 @@ export type RightHandSidebarRegistration = {
 export interface PluginRegistry {
     registerRightHandSidebarComponent(component: React.ComponentType, title: React.ReactNode): RightHandSidebarRegistration;
     registerAppBarComponent(options: {iconUrl: string; tooltipText: React.ReactNode; action: () => void}): string;
+
+    // The channel's "..." menu: where "Schedule a call" lives (there's no channel call button of
+    // the calendar's own to add it to; see components/schedule_call.tsx).
+    registerChannelHeaderMenuAction(text: React.ReactNode, action: (channelId: string) => void, shouldRender?: (state: GlobalState) => boolean): string;
+
+    // The scheduling dialog, and the meeting post's buttons, are both rendered this way.
+    registerRootComponent(component: React.ComponentType): string;
+    registerPostTypeComponent(type: string, component: React.ComponentType<{post: Post}>): string;
+    registerWebSocketEventHandler(event: string, handler: (msg: {event: string; data: Record<string, unknown>}) => void): void;
 }
 
 export type PluginStore = Store<GlobalState>;
