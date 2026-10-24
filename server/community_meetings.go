@@ -96,6 +96,56 @@ func (p *Plugin) communityChannel(callerID, teamID, channelID string) (*model.Ch
 	return channel, false
 }
 
+// readableMeeting is a scheduled call of a community, with the channel it's shown from.
+type readableMeeting struct {
+	meeting *Meeting
+	channel *model.Channel
+}
+
+// readableCommunityMeetings returns the calls of a community that callerID may see there, as of
+// now: the read rule of the community calendar (GET /meetings) and of the calendar feeds
+// (feeds.go) alike. Cancelled calls are left out, and so is every call of a channel callerID may
+// not read in that community (communityChannel); a call whose channel moved to another community
+// is re-indexed there, and left out too. The caller must have checked that callerID is a member
+// of the community.
+func (p *Plugin) readableCommunityMeetings(callerID, teamID string) ([]readableMeeting, error) {
+	meetings, err := p.store.ListTeamMeetings(teamID)
+	if err != nil {
+		return nil, err
+	}
+
+	type access struct {
+		channel  *model.Channel
+		readable bool
+	}
+	channels := map[string]access{}
+	var readable []readableMeeting
+	for _, m := range meetings {
+		if m.Cancelled {
+			// Normally dropped from the index when cancelled; this catches a failed drop.
+			if err := p.store.removeFromTeamIndex(teamID, m.ID); err != nil {
+				p.API.LogWarn("Failed to drop a cancelled call from its community's index", "err", err.Error())
+			}
+			continue
+		}
+		a, seen := channels[m.ChannelID]
+		if !seen {
+			channel, ok := p.communityChannel(callerID, teamID, m.ChannelID)
+			a = access{channel: channel, readable: ok}
+			channels[m.ChannelID] = a
+		}
+		if a.channel != nil && a.channel.TeamId != teamID {
+			p.reindexMeeting(m, a.channel.TeamId)
+			continue
+		}
+		if !a.readable {
+			continue
+		}
+		readable = append(readable, readableMeeting{meeting: m, channel: a.channel})
+	}
+	return readable, nil
+}
+
 // reindexMeeting moves a meeting whose channel is now in another community (or none) to that
 // community's index. Best effort: the next read or the hourly pass tries again.
 func (p *Plugin) reindexMeeting(m *Meeting, newTeamID string) {
@@ -137,40 +187,15 @@ func (p *Plugin) handleListCommunityMeetings(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	meetings, err := p.store.ListTeamMeetings(teamID)
+	readable, err := p.readableCommunityMeetings(callerID, teamID)
 	if err != nil {
 		p.writeError(w, err)
 		return
 	}
 
-	type access struct {
-		channel  *model.Channel
-		readable bool
-	}
-	channels := map[string]access{}
 	occurrences := []communityOccurrence{}
-	for _, m := range meetings {
-		if m.Cancelled {
-			// Normally dropped from the index when cancelled; this catches a failed drop.
-			if err := p.store.removeFromTeamIndex(teamID, m.ID); err != nil {
-				p.API.LogWarn("Failed to drop a cancelled call from its community's index", "err", err.Error())
-			}
-			continue
-		}
-		a, seen := channels[m.ChannelID]
-		if !seen {
-			channel, readable := p.communityChannel(callerID, teamID, m.ChannelID)
-			a = access{channel: channel, readable: readable}
-			channels[m.ChannelID] = a
-		}
-		if a.channel != nil && a.channel.TeamId != teamID {
-			p.reindexMeeting(m, a.channel.TeamId)
-			continue
-		}
-		if !a.readable {
-			continue
-		}
-
+	for _, rm := range readable {
+		m, channel := rm.meeting, rm.channel
 		starts, err := meetingOccurrences(m, from, to)
 		if err != nil {
 			continue
@@ -179,7 +204,7 @@ func (p *Plugin) handleListCommunityMeetings(w http.ResponseWriter, r *http.Requ
 		for _, start := range starts {
 			o := communityOccurrence{
 				MeetingID: m.ID, PostID: m.PostID,
-				ChannelID: a.channel.Id, ChannelName: a.channel.Name, ChannelDisplayName: a.channel.DisplayName, ChannelType: string(a.channel.Type),
+				ChannelID: channel.Id, ChannelName: channel.Name, ChannelDisplayName: channel.DisplayName, ChannelType: string(channel.Type),
 				OrganizerID: m.OrganizerID, Summary: m.Summary,
 				Start: start.UnixMilli(), End: start.Add(duration).UnixMilli(),
 				Recurring: m.recurring(),
