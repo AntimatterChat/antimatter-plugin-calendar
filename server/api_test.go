@@ -106,7 +106,7 @@ func TestAPIAccount(t *testing.T) {
 
 	e.connect(t)
 	w = e.request(t, http.MethodGet, "/api/v1/account", nil)
-	assert.JSONEq(t, `{"account": {"url": "`+e.server.URL+`", "username": "ada", "remind_minutes": 10}}`, w.Body.String())
+	assert.JSONEq(t, `{"account": {"url": "`+e.server.URL+`", "username": "ada", "remind_minutes": 10, "email_invites": false}}`, w.Body.String())
 	account, err := e.p.store.GetAccount(e.userID)
 	require.NoError(t, err)
 	assert.Equal(t, e.server.URL+testHomeSet, account.HomeSetURL)
