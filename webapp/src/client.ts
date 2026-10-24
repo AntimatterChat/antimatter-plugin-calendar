@@ -60,6 +60,10 @@ export type Occurrence = {
     recurrence_id?: number;
     alarms?: number[];
     link?: EventLink;
+
+    // A scheduled call of the community (the "Community calls" layer), rather than an event of a
+    // personal calendar: opening it opens its post.
+    community?: CommunityCall;
 };
 
 export type EventDetails = {
@@ -307,4 +311,30 @@ export function setReminderOverride(id: string, minutes: number | null) {
 // meetingICSURL is the "add to calendar" download of a meeting's current invitation.
 export function meetingICSURL(id: string) {
     return apiURL(`/meetings/${id}/ics`);
+}
+
+// CommunityCall is an occurrence of a scheduled call of the community, from a channel the caller
+// may read, with only the caller's own RSVP.
+export type CommunityCall = {
+    meeting_id: string;
+    post_id: string;
+    channel_id: string;
+    channel_name: string;
+    channel_display_name: string;
+    channel_type: string;
+    organizer_id: string;
+    summary: string;
+    start: number;
+    end: number;
+    recurring: boolean;
+    my_rsvp?: RSVPStatus;
+};
+
+// getCommunityCalls returns the occurrences of a community's scheduled calls in a range (at most
+// 100 days).
+export function getCommunityCalls(teamId: string, from: Date, to: Date) {
+    return request<{occurrences: CommunityCall[]; truncated: boolean}>(
+        'GET',
+        `/meetings?${query({team_id: teamId, from: from.getTime(), to: to.getTime()})}`,
+    );
 }

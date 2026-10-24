@@ -155,4 +155,8 @@ export const messages = defineMessages({
     cancelOccurrenceConfirm: {id: 'calendar.schedule_call.cancel.occurrence_confirm', defaultMessage: 'Cancel this call only?', description: 'Title of the dialog that asks before cancelling the next call of a repeating call (not the whole series).'},
     cancelOccurrenceLead: {id: 'calendar.schedule_call.cancel.occurrence_lead', defaultMessage: 'The rest of the series goes on. The members who were emailed an invitation get a cancellation for this call.', description: 'Sentence under the title of the dialog that asks before cancelling the next call of a repeating call.'},
     cancelSeriesConfirm: {id: 'calendar.schedule_call.cancel.series_confirm', defaultMessage: 'Cancel the whole series?', description: 'Title of the dialog that asks before cancelling every call of a repeating call.'},
+
+    // The "Community calls" layer of the calendar panel
+    communityCalls: {id: 'calendar.community_calls', defaultMessage: 'Community calls', description: 'Name of the calendar panel\'s layer that shows the calls scheduled in the community\'s channels the person can read, toggled beside their own calendars.'},
+    openCallPost: {id: 'calendar.community_calls.open', defaultMessage: 'Open the post of {title}', description: 'Accessible label of a community call in the calendar: opens the call\'s post in its channel.'},
 });

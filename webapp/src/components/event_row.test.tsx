@@ -77,3 +77,62 @@ describe('the tooltips of the events', () => {
         expect(document.querySelector('[data-am-tip]')).toBeNull();
     });
 });
+
+describe('a community call\'s row', () => {
+    const call: Occurrence = {
+        ...event,
+        id: '@community:meeting1:1',
+        calendar: '@community',
+        path: '',
+        recurrence: '',
+        link: {channel_id: 'channel1', kind: 'call', channel_name: 'standup', display_name: 'Standup', channel_type: 'O'},
+        community: {
+            meeting_id: 'meeting1',
+            post_id: 'post1',
+            channel_id: 'channel1',
+            channel_name: 'standup',
+            channel_display_name: 'Standup',
+            channel_type: 'O',
+            organizer_id: 'organizer1',
+            summary: event.summary,
+            start: event.start,
+            end: event.end,
+            recurring: false,
+            my_rsvp: 'no',
+        },
+    };
+
+    test('says its channel and the person\'s own answer, and opens its post', () => {
+        const onOpen = jest.fn();
+        render(
+            <IntlProvider locale='en'>
+                <EventRow
+                    event={call}
+                    color='#14B8A6'
+                    now={false}
+                    onOpen={onOpen}
+                />
+            </IntlProvider>,
+        );
+        expect(screen.getByText(/30 min · No/)).toHaveTextContent('Standup');
+        screen.getByRole('button', {name: 'Open the post of Weekly sync with the design team'}).click();
+        expect(onOpen).toHaveBeenCalledWith(call);
+
+        // Not on now: no Join (or Open) button.
+        expect(screen.queryByRole('button', {name: 'Open'})).not.toBeInTheDocument();
+    });
+
+    test('offers its join button while it\'s on', () => {
+        render(
+            <IntlProvider locale='en'>
+                <EventRow
+                    event={call}
+                    color='#14B8A6'
+                    now={true}
+                    onOpen={jest.fn()}
+                />
+            </IntlProvider>,
+        );
+        expect(screen.getByRole('button', {name: 'Open'})).toBeInTheDocument();
+    });
+});

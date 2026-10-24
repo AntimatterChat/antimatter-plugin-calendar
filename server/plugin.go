@@ -51,6 +51,10 @@ type Plugin struct {
 
 	// tlsConfig is nil for the default TLS configuration (tests set their own CA).
 	tlsConfig *tls.Config
+
+	// meetingReindexAt is when reindexMovedMeetings last checked every meeting's community.
+	meetingReindexMu sync.Mutex
+	meetingReindexAt time.Time
 }
 
 // OnActivate is invoked when the plugin is activated.
@@ -93,8 +97,11 @@ func (p *Plugin) OnActivate() error {
 
 	// One server of the cluster sends the reminders
 	p.reminders = newReminderService(p)
+	// It also keeps the community indexes of scheduled calls right when a channel moves.
 	p.job, err = cluster.Schedule(p.API, "reminders", cluster.MakeWaitForInterval(reminderTick), func() {
-		p.reminders.run(time.Now())
+		now := time.Now()
+		p.reindexMovedMeetings(now)
+		p.reminders.run(now)
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to schedule the reminders")

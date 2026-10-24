@@ -17,8 +17,12 @@ const (
 	// meetingKeyPrefix prefixes the key of each scheduled meeting.
 	meetingKeyPrefix = "meeting_"
 	// teamIndexKeyPrefix prefixes the key of each community's index of meeting IDs (for the
-	// community calendar view, so it doesn't have to scan every meeting in the store).
-	teamIndexKeyPrefix = "meeting_team_"
+	// community calendar view and the channel header's next call, so they don't have to scan
+	// every meeting in the store). Deliberately not under meetingKeyPrefix, or ListMeetingIDs
+	// would take an index for a meeting. The index is only a hint: every read checks each
+	// meeting's channel, community and cancellation again, so an entry left behind by a failed
+	// update never shows anything it shouldn't.
+	teamIndexKeyPrefix = "meetidx_team_"
 
 	// meetingKeepAfter is how long a meeting (and the RSVPs on it) is kept in the store after it
 	// ends, so the post can still show who was going after the fact. A series that never ends (no
@@ -97,9 +101,10 @@ type Meeting struct {
 	// event as the original invitation.
 	ID        string `json:"id"`
 	ChannelID string `json:"channel_id"`
-	// TeamID is the channel's community, cached at creation for the per-community index
-	// (teamMeetingIndexKey). Not kept in sync with a channel moved to another team afterwards
-	// (Mattermost has no such move for a channel with scheduled calls today).
+	// TeamID is the channel's community, cached for the per-community index (teamIndexKey).
+	// A channel moved to another community fires no hook an app can see, so the move is caught
+	// on reads (the community list finds the channel elsewhere) and by an hourly pass
+	// (reindexMovedMeetings), and the meeting is then re-indexed (MoveMeetingTeam).
 	TeamID      string `json:"team_id,omitempty"`
 	PostID      string `json:"post_id"`
 	OrganizerID string `json:"organizer_id"`
@@ -432,6 +437,31 @@ func (s *Store) ListTeamMeetings(teamID string) ([]*Meeting, error) {
 		}
 	}
 	return meetings, nil
+}
+
+// MoveMeetingTeam records that a meeting's channel is now in another community (or in none, for
+// an empty newTeamID), and moves it from the old community's index to the new one's.
+func (s *Store) MoveMeetingTeam(meetingID, newTeamID string) (*Meeting, error) {
+	var oldTeamID string
+	m, err := s.UpdateMeeting(meetingID, func(m *Meeting) error {
+		oldTeamID = m.TeamID
+		m.TeamID = newTeamID
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if oldTeamID != "" && oldTeamID != newTeamID {
+		if err := s.removeFromTeamIndex(oldTeamID, meetingID); err != nil {
+			return m, err
+		}
+	}
+	if newTeamID != "" && !m.Cancelled {
+		if err := s.addToTeamIndex(newTeamID, meetingID); err != nil {
+			return m, err
+		}
+	}
+	return m, nil
 }
 
 // SetRSVP records a member's answer to a meeting: for the whole series (scope is ""), or just the

@@ -102,6 +102,7 @@ func (p *Plugin) newRouter() *mux.Router {
 	// Scheduling a call for a channel: a shared meeting, independent of anyone's personal
 	// calendar (see meetings.go).
 	api.HandleFunc("/channels/{channelId}/meetings", p.handleCreateMeeting).Methods(http.MethodPost)
+	api.HandleFunc("/meetings", p.handleListCommunityMeetings).Methods(http.MethodGet)
 	api.HandleFunc("/meetings/{meetingId}", p.handleGetMeeting).Methods(http.MethodGet)
 	api.HandleFunc("/meetings/{meetingId}", p.handleEditMeeting).Methods(http.MethodPut)
 	api.HandleFunc("/meetings/{meetingId}", p.handleCancelMeeting).Methods(http.MethodDelete)

@@ -20,6 +20,13 @@ type Props = {
     onDay: (day: Date) => void;
 };
 
+// chipTip is the tooltip of an event's chip: its title, and a community call's channel too (the
+// chip itself has room for its time and title only).
+function chipTip(event: Occurrence): string {
+    const channel = event.community?.channel_display_name;
+    return channel ? `${event.summary} · #${channel}` : event.summary;
+}
+
 // Week shows the events of a week, a column per day.
 export default function Week({weekStart, events, calendars, now, onOpen, onDay}: Props) {
     const {formatMessage, locale} = useIntl();
@@ -49,7 +56,7 @@ export default function Week({weekStart, events, calendars, now, onOpen, onDay}:
                             key={event.id}
                             className={own('chip', {now: isNow(event, now), 'all-day': event.all_day})}
                             style={{'--amc-ev': calendarColor(calendars, event.calendar)} as React.CSSProperties}
-                            {...(event.summary ? tip(event.summary) : {})}
+                            {...(event.summary ? tip(chipTip(event)) : {})}
                             onClick={() => onOpen(event)}
                         >
                             <span className={own('chip-time')}>{event.all_day ? formatMessage(messages.allDay) : formatTime(event.start, locale)}</span>

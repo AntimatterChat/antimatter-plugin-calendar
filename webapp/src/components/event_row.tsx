@@ -20,12 +20,17 @@ type Props = {
     onOpen: (event: Occurrence) => void;
 };
 
+// The person's own answer to a community call, as its row says it.
+const RSVP_LABELS = {going: messages.rsvpGoing, maybe: messages.rsvpMaybe, no: messages.rsvpNo};
+
 // EventRow is an event of the agenda, as in the Fusion mockup: its time, title, details and the
-// button that joins its meeting.
+// button that joins its meeting. A community call (the "Community calls" layer) says its channel
+// and the person's own answer, opens its post, and offers Join only while it's on.
 export default function EventRow({event, color, now, onOpen}: Props) {
     const {formatMessage, locale} = useIntl();
     const title = event.summary || formatMessage(messages.untitled);
     const meeting = useMeeting(event.link, title);
+    const call = event.community;
 
     const details: string[] = [];
     if (!event.all_day) {
@@ -41,6 +46,9 @@ export default function EventRow({event, color, now, onOpen}: Props) {
     if (event.location) {
         details.push(event.location);
     }
+    if (call?.my_rsvp) {
+        details.push(formatMessage(RSVP_LABELS[call.my_rsvp]));
+    }
 
     return (
         <div
@@ -50,7 +58,7 @@ export default function EventRow({event, color, now, onOpen}: Props) {
             <span className={am('when')}>{event.all_day ? formatMessage(messages.allDay) : formatTime(event.start, locale)}</span>
             <button
                 className={own('event-main')}
-                aria-label={formatMessage(messages.edit, {title})}
+                aria-label={formatMessage(call ? messages.openCallPost : messages.edit, {title})}
                 onClick={() => onOpen(event)}
             >
                 <b>
@@ -74,7 +82,7 @@ export default function EventRow({event, color, now, onOpen}: Props) {
                     {meeting?.place}
                 </span>
             </button>
-            {meeting?.button}
+            {(!call || now) && meeting?.button}
         </div>
     );
 }

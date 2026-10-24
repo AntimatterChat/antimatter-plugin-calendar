@@ -3,10 +3,15 @@
 
 import React, {useCallback, useEffect, useState} from 'react';
 import {useIntl} from 'react-intl';
+import {useSelector} from 'react-redux';
+
+import {getCurrentTeam} from 'mattermost-redux/selectors/entities/teams';
 
 import {am, own} from '../class_names';
 import * as client from '../client';
 import type {Account, Calendar, Occurrence} from '../client';
+import {COMMUNITY_CALENDAR, communityLayer, openPost, toOccurrence} from '../community_calls';
+import {onMeetingChanged} from '../meeting_events';
 import {addDays, calendarColor, startOfDay, startOfWeek} from '../utils';
 import {isFusionUI} from '../web_ui';
 
@@ -61,9 +66,12 @@ function range(mode: Mode, day: Date): [Date, Date] {
     return [day, addDays(day, UPCOMING_DAYS + 1)];
 }
 
-// CalendarPanel is the calendar app, shown in the right-hand panel.
+// CalendarPanel is the calendar app, shown in the right-hand panel: the person's own calendars
+// (once they connected an account) and the community's scheduled calls (with or without one).
 export default function CalendarPanel() {
     const {formatMessage} = useIntl();
+    const team = useSelector(getCurrentTeam);
+    const teamId = team?.id || '';
     const [account, setAccount] = useState<Account | null>(null);
     const [loaded, setLoaded] = useState(false);
     const [remindersEnabled, setRemindersEnabled] = useState(true);
@@ -77,6 +85,9 @@ export default function CalendarPanel() {
     const [reloadKey, setReloadKey] = useState(0);
     const [hidden, setHidden] = useState<string[]>(loadHidden);
     const [error, setError] = useState('');
+    const [communityEvents, setCommunityEvents] = useState<Occurrence[]>([]);
+    const [communityError, setCommunityError] = useState('');
+    const [callsChanged, setCallsChanged] = useState(0);
 
     const loadAccount = useCallback(async () => {
         setError('');
@@ -129,6 +140,38 @@ export default function CalendarPanel() {
         };
     }, [account, mode, day, reloadKey]);
 
+    // The community's calls, read for the same days as the events, and again whenever the server
+    // says a call changed.
+    useEffect(() => onMeetingChanged(() => setCallsChanged((n) => n + 1)), []);
+    useEffect(() => {
+        let cancelled = false;
+        let interval = 0;
+        const [from, to] = range(mode, day);
+        const load = async () => {
+            try {
+                const result = await client.getCommunityCalls(teamId, from, to);
+                if (!cancelled) {
+                    setCommunityEvents(result.occurrences.map(toOccurrence));
+                    setCommunityError('');
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setCommunityError((err as Error).message);
+                }
+            }
+        };
+        if (teamId) {
+            load();
+            interval = window.setInterval(load, REFRESH_INTERVAL);
+        } else {
+            setCommunityEvents([]);
+        }
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+        };
+    }, [teamId, mode, day, reloadKey, callsChanged]);
+
     useEffect(() => {
         const interval = window.setInterval(() => setNow(Date.now()), CLOCK_INTERVAL);
         return () => window.clearInterval(interval);
@@ -136,13 +179,19 @@ export default function CalendarPanel() {
 
     const step = (direction: number) => setDay((d) => addDays(d, direction * (mode === 'week' ? 7 : 1)));
     const reload = () => setReloadKey((k) => k + 1);
-    const calendarName = (id: string) => calendars.find((c) => c.id === id)?.name || id;
+    const layers = teamId ? [...calendars, communityLayer(formatMessage(messages.communityCalls))] : calendars;
+    const calendarName = (id: string) => layers.find((c) => c.id === id)?.name || id;
     const toggleCalendar = (id: string) => {
         const next = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
         setHidden(next);
         saveHidden(next);
     };
-    const shown = events?.filter((e) => !hidden.includes(e.calendar)) || null;
+
+    // Without an account there are no personal events to wait for: only the community's calls.
+    const personal = account ? events : [];
+    const community = hidden.includes(COMMUNITY_CALENDAR) ? [] : communityEvents;
+    const shown = personal ? [...personal.filter((e) => !hidden.includes(e.calendar)), ...community].sort((a, b) => a.start - b.start) : null;
+    const allFailures = communityError ? [...failures, {calendar: COMMUNITY_CALENDAR, error: communityError}] : failures;
 
     let content: React.ReactNode;
     if (!loaded && !error) {
@@ -166,7 +215,7 @@ export default function CalendarPanel() {
                 </button>
             </div>
         );
-    } else if (!account || view.kind === 'settings') {
+    } else if ((!account && !teamId) || view.kind === 'settings') {
         content = (
             <AccountForm
                 account={account}
@@ -176,7 +225,7 @@ export default function CalendarPanel() {
                     setView({kind: 'calendar'});
                     reload();
                 }}
-                onCancel={account ? () => setView({kind: 'calendar'}) : null}
+                onCancel={account || teamId ? () => setView({kind: 'calendar'}) : null}
                 onDisconnected={() => {
                     setAccount(null);
                     setCalendars([]);
@@ -199,7 +248,13 @@ export default function CalendarPanel() {
             />
         );
     } else {
-        const open = (occurrence: Occurrence) => setView({kind: 'editor', occurrence});
+        const open = (occurrence: Occurrence) => {
+            if (occurrence.community) {
+                openPost(team?.name, occurrence.community.post_id);
+                return;
+            }
+            setView({kind: 'editor', occurrence});
+        };
         content = (
             <div className={am('app-panel')}>
                 <div className={own('toolbar')}>
@@ -237,7 +292,7 @@ export default function CalendarPanel() {
                     </button>
                     <button
                         className={am('icon-btn')}
-                        {...iconTip(formatMessage(messages.settings))}
+                        {...iconTip(formatMessage(account ? messages.settings : messages.setupTitle))}
                         onClick={() => setView({kind: 'settings'})}
                     >
                         <Icon name='cog'/>
@@ -266,9 +321,9 @@ export default function CalendarPanel() {
                     </button>
                 </div>
                 {error && <div className={own('error')}>{error}</div>}
-                {calendars.length > 1 && (
+                {layers.length > 1 && (
                     <div className={own('calendars')}>
-                        {calendars.map((c) => (
+                        {layers.map((c) => (
                             <button
                                 key={c.id}
                                 className={am('chip-btn', {on: !hidden.includes(c.id)})}
@@ -277,14 +332,14 @@ export default function CalendarPanel() {
                             >
                                 <i
                                     className={own('dot')}
-                                    style={{background: calendarColor(calendars, c.id)}}
+                                    style={{background: calendarColor(layers, c.id)}}
                                 />
                                 {c.name}
                             </button>
                         ))}
                     </div>
                 )}
-                {failures.map((f) => (
+                {allFailures.map((f) => (
                     <div
                         key={f.calendar}
                         className={own('error')}
@@ -292,7 +347,7 @@ export default function CalendarPanel() {
                         {formatMessage(messages.calendarFailed, {calendar: calendarName(f.calendar), error: f.error})}
                     </div>
                 ))}
-                {events === null && !error && (
+                {shown === null && !error && (
                     <EmptyState
                         busy={true}
                         text={formatMessage(messages.loading)}
@@ -303,7 +358,7 @@ export default function CalendarPanel() {
                     <Agenda
                         day={day}
                         events={shown}
-                        calendars={calendars}
+                        calendars={layers}
                         now={now}
                         onOpen={open}
                     />
@@ -312,7 +367,7 @@ export default function CalendarPanel() {
                     <Week
                         weekStart={startOfWeek(day)}
                         events={shown}
-                        calendars={calendars}
+                        calendars={layers}
                         now={now}
                         onOpen={open}
                         onDay={(d) => {
