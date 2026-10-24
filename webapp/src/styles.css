@@ -636,3 +636,106 @@
     font-size: 13px;
     font-weight: 600;
 }
+
+/*
+ * A call's post and the channel header's next call sit outside the panel's .amc-root: they get the
+ * same tokens (Fusion's under Fusion, the classic theme's otherwise).
+ */
+.amc-meeting,
+.amc-next-call {
+    --amc-text: var(--am-text, var(--center-channel-color));
+    --amc-text-2: var(--am-text-2, rgba(var(--center-channel-color-rgb), 0.88));
+    --amc-muted: var(--am-muted, rgba(var(--center-channel-color-rgb), 0.64));
+    --amc-line: var(--am-line, rgba(var(--center-channel-color-rgb), 0.16));
+    --amc-side: var(--am-side, rgba(var(--center-channel-color-rgb), 0.04));
+    --amc-raise: var(--am-raise, rgba(var(--center-channel-color-rgb), 0.08));
+    --amc-hover: var(--am-hover, rgba(var(--center-channel-color-rgb), 0.08));
+    --amc-accent: var(--am-matter, var(--button-bg));
+    --amc-accent-text: var(--button-color, #fff);
+    --amc-ok: var(--am-ok, var(--online-indicator, #23A55A));
+    --amc-danger: var(--am-danger, var(--error-text));
+}
+
+/* The repeat picker and the reminder of the "Schedule a call" dialog */
+.amc-repeat-options {
+    display: grid;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: var(--amc-side);
+}
+
+.amc-inline {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 0;
+}
+
+.amc-inline .amc-unit {
+    padding-bottom: 10px;
+    color: var(--amc-text-2);
+    font-size: 13.5px;
+}
+
+.amc-root .am-field input.amc-input.amc-number,
+.amc-input.amc-number {
+    width: 76px;
+}
+
+.amc-weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.amc-weekdays > button {
+    min-width: 44px;
+    justify-content: center;
+}
+
+/* Fusion only styles text inputs: selects look the same as the date and time inputs */
+.amc-root .am-field select.amc-input {
+    width: 100%;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--am-line);
+    border-radius: 9px;
+    background: var(--am-side);
+    color: var(--am-text);
+    outline: none;
+    color-scheme: inherit;
+}
+
+.amc-root .am-field select.amc-input:focus {
+    border-color: var(--am-matter);
+}
+
+/* The call's post: "Only the next call" and the member's own "Remind me" */
+.amc-meeting .amc-check {
+    font-weight: 500;
+    color: var(--amc-text-2);
+}
+
+.amc-remind-me {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--amc-text-2);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.amc-remind-me select.amc-input {
+    max-width: 100%;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--amc-line);
+    border-radius: 8px;
+    background: var(--amc-raise);
+    color: var(--amc-text);
+    font: inherit;
+    color-scheme: inherit;
+}

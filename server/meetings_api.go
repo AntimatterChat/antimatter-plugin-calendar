@@ -175,6 +175,9 @@ func (p *Plugin) handleCreateMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Open clients refresh what shows this channel's calls (the header's next call, the community
+	// calendar), not just the posts of meetings they already know.
+	p.notifyMeetingChanged(m)
 	p.sendInvitesAsync(m, channel, organizer, organizer)
 	p.writeMeetingView(w, r, m)
 }
@@ -525,6 +528,18 @@ type meetingView struct {
 	RSVPs     map[string]RSVP           `json:"rsvps,omitempty"`
 	NextRSVPs map[string]occurrenceRSVP `json:"next_rsvps,omitempty"`
 
+	// NextStart and NextEnd are the occurrence that's live or next now (the one the post shows,
+	// and that a "next call only" RSVP or "this call" cancellation applies to), computed by the
+	// server so no client has to expand the RRULE; absent once the call (or the series) is over,
+	// and for a cancelled one.
+	NextStart int64 `json:"next_start,omitempty"`
+	NextEnd   int64 `json:"next_end,omitempty"`
+	// MyRSVP is the caller's own answer for that occurrence (their "next call only" answer if
+	// they gave one for it, else their answer for the series); MyRSVPNextOnly says it's the
+	// former.
+	MyRSVP         RSVPStatus `json:"my_rsvp,omitempty"`
+	MyRSVPNextOnly bool       `json:"my_rsvp_next_only,omitempty"`
+
 	CanCancel bool `json:"can_cancel"`
 }
 
@@ -543,6 +558,19 @@ func (p *Plugin) newMeetingView(callerID string, m *Meeting) *meetingView {
 	}
 	if minutes, ok := m.ReminderOverrides[callerID]; ok {
 		view.MyReminderOverride = &minutes
+	}
+
+	occurrence := m.Start
+	if !m.Cancelled {
+		if start, end, ok := nextMeetingOccurrence(m, time.Now()); ok {
+			view.NextStart, view.NextEnd = start.UnixMilli(), end.UnixMilli()
+			occurrence = view.NextStart
+		}
+	}
+	if rsvp, ok := m.effectiveRSVP(callerID, occurrence); ok {
+		view.MyRSVP = rsvp.Status
+		next, nextOK := m.NextRSVPs[callerID]
+		view.MyRSVPNextOnly = nextOK && next.OccurrenceStart == occurrence
 	}
 	return view
 }

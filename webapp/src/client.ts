@@ -211,27 +211,50 @@ export type RSVP = {
     updated_at: number;
 };
 
-// Meeting is a call scheduled for everyone in a channel: see the server's meetings.go.
+// Meeting is a call scheduled for everyone in a channel: see the server's meetings.go, and
+// docs/MEETINGS_API.md for the exact JSON.
 export type Meeting = {
     id: string;
     channel_id: string;
+    team_id?: string;
     post_id: string;
     organizer_id: string;
     summary: string;
     description?: string;
-    // start and end are in milliseconds.
+
+    // start and end are in milliseconds: the series' first occurrence, for a recurring call.
     start: number;
     end: number;
+
+    // A recurring call: its RFC 5545 RRULE, the IANA time zone it repeats in, and the starts of
+    // its cancelled occurrences.
+    time_zone?: string;
+    recurrence_rule?: string;
+    exception_dates?: number[];
+
+    // The occurrence live or next now (computed by the server); absent once it's over.
+    next_start?: number;
+    next_end?: number;
+
+    // The call's own reminder (minutes before; -1 for none), and the caller's own override of
+    // it (absent: "Default", the call's own).
+    reminder_minutes?: number;
+    my_reminder_override?: number;
+
     sequence: number;
     cancelled: boolean;
     created_at: number;
     updated_at: number;
     rsvps?: Record<string, RSVP>;
 
+    // The caller's own answer for the next occurrence, and whether it's for that one only.
+    my_rsvp?: RSVPStatus;
+    my_rsvp_next_only?: boolean;
+
     // can_cancel is computed by the server for the caller: the organiser, that channel's admins,
     // that community's admins, and system admins. Editing stays organiser-only (not reflected
     // here, since only the organiser ever sees an Edit button).
-    can_cancel: boolean;
+    can_cancel?: boolean;
 };
 
 export type MeetingInput = {
@@ -239,6 +262,9 @@ export type MeetingInput = {
     description: string;
     start: number;
     end: number;
+    time_zone: string;
+    recurrence_rule: string;
+    reminder_minutes: number;
 };
 
 // scheduleCall schedules a call for everyone in a channel: a post with a Join button, reminders,
@@ -256,13 +282,26 @@ export function updateMeeting(id: string, input: MeetingInput) {
     return request<Meeting>('PUT', `/meetings/${id}`, input);
 }
 
-// cancelMeeting cancels a meeting, sending iTIP cancellations.
-export function cancelMeeting(id: string) {
-    return request<unknown>('DELETE', `/meetings/${id}`);
+// CancelScope is what cancelling a recurring call applies to: its next occurrence only, or the
+// whole series.
+export type CancelScope = 'occurrence' | 'series';
+
+// cancelMeeting cancels a call (or only the next occurrence of a series), sending iTIP
+// cancellations.
+export function cancelMeeting(id: string, scope: CancelScope = 'series') {
+    const params = scope === 'occurrence' ? `?${query({scope})}` : '';
+    return request<Meeting>('DELETE', `/meetings/${id}${params}`);
 }
 
-export function setRSVP(id: string, status: RSVPStatus) {
-    return request<Meeting>('POST', `/meetings/${id}/rsvp`, {status});
+// setRSVP answers a call: for the whole series, or (nextOnly) its next occurrence alone.
+export function setRSVP(id: string, status: RSVPStatus, nextOnly = false) {
+    return request<Meeting>('POST', `/meetings/${id}/rsvp`, nextOnly ? {status, scope: 'next'} : {status});
+}
+
+// setReminderOverride sets the caller's own reminder for a call, or (null) goes back to the
+// call's own ("Default").
+export function setReminderOverride(id: string, minutes: number | null) {
+    return request<Meeting>('POST', `/meetings/${id}/reminder`, {minutes});
 }
 
 // meetingICSURL is the "add to calendar" download of a meeting's current invitation.

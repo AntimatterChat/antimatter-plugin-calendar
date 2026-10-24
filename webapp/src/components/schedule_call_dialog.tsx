@@ -7,8 +7,24 @@ import {useIntl} from 'react-intl';
 
 import {am, own} from '../class_names';
 import * as client from '../client';
+import {
+    DEFAULT_REMINDER,
+    MAX_COUNT,
+    MAX_INTERVAL,
+    MAX_REPEAT_DAYS,
+    REMINDER_CHOICES,
+    buildRRule,
+    defaultRepeat,
+    parseRRule,
+    reminderLabel,
+    weekdayIndex,
+    weekdayName,
+    type RepeatEnds,
+    type RepeatForm,
+    type RepeatFreq,
+} from '../recurrence';
 import {onScheduleCallDialog, type ScheduleCallTarget} from '../schedule_call';
-import {dateInput, parseLocal, timeInput} from '../utils';
+import {addDays, dateInput, parseLocal, timeInput} from '../utils';
 import {isFusionUI} from '../web_ui';
 
 import {fusionLayer} from './fusion/fusion_ui';
@@ -56,8 +72,13 @@ type FormProps = {
     onDone: () => void;
 };
 
+// The repeat picker's choices; 'custom' keeps a rule the picker can't show (from another app) as
+// it is.
+type RepeatChoice = RepeatFreq | 'custom';
+
 function ScheduleCallForm({target, onDone}: FormProps) {
-    const {formatMessage} = useIntl();
+    const intl = useIntl();
+    const {formatMessage, locale} = intl;
     const {meeting} = target;
 
     const initialStart = meeting ? new Date(meeting.start) : roundToQuarterHour(new Date(Date.now() + DEFAULT_LEAD_MINUTES * 60000));
@@ -69,8 +90,21 @@ function ScheduleCallForm({target, onDone}: FormProps) {
     const [startTime, setStartTime] = useState(timeInput(initialStart));
     const [endDate, setEndDate] = useState(dateInput(initialEnd));
     const [endTime, setEndTime] = useState(timeInput(initialEnd));
+    const parsedRepeat = meeting?.recurrence_rule ? parseRRule(meeting.recurrence_rule, initialStart) : defaultRepeat(initialStart);
+    const [repeat, setRepeat] = useState<RepeatForm>(parsedRepeat || defaultRepeat(initialStart));
+    const [repeatChoice, setRepeatChoice] = useState<RepeatChoice>(parsedRepeat ? parsedRepeat.freq : 'custom');
+    const [reminder, setReminder] = useState(meeting?.reminder_minutes ?? DEFAULT_REMINDER);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+
+    const setRepeatField = <K extends keyof RepeatForm>(key: K, value: RepeatForm[K]) => setRepeat((r) => ({...r, [key]: value}));
+    const toggleDay = (day: number) => setRepeat((r) => ({...r, days: r.days.includes(day) ? r.days.filter((d) => d !== day) : [...r.days, day]}));
+    const unit = {
+        none: messages.repeatUnitDays,
+        daily: messages.repeatUnitDays,
+        weekly: messages.repeatUnitWeeks,
+        monthly: messages.repeatUnitMonths,
+    }[repeat.freq];
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
@@ -92,9 +126,32 @@ function ScheduleCallForm({target, onDone}: FormProps) {
             return;
         }
 
+        let rule = '';
+        if (repeatChoice === 'custom') {
+            rule = meeting?.recurrence_rule || '';
+        } else if (repeatChoice !== 'none') {
+            if (repeat.freq === 'weekly' && repeat.days.length === 0) {
+                setError(formatMessage(messages.repeatNoDays));
+                return;
+            }
+            if (repeat.ends === 'on' && parseLocal(repeat.until).getTime() < parseLocal(startDate).getTime()) {
+                setError(formatMessage(messages.repeatUntilBeforeStart));
+                return;
+            }
+            rule = buildRRule(repeat);
+        }
+
         setSaving(true);
         setError('');
-        const input = {summary: summary.trim(), description: description.trim(), start: start.getTime(), end: end.getTime()};
+        const input: client.MeetingInput = {
+            summary: summary.trim(),
+            description: description.trim(),
+            start: start.getTime(),
+            end: end.getTime(),
+            time_zone: client.timeZone(),
+            recurrence_rule: rule,
+            reminder_minutes: reminder,
+        };
         try {
             if (meeting) {
                 await client.updateMeeting(meeting.id, input);
@@ -158,6 +215,11 @@ function ScheduleCallForm({target, onDone}: FormProps) {
                                 onChange={(e) => {
                                     const shift = parseLocal(e.target.value).getTime() - parseLocal(startDate).getTime();
                                     setEndDate(dateInput(new Date(parseLocal(endDate).getTime() + shift)));
+
+                                    // A weekly call on the start's own day follows the start to its new day.
+                                    const oldDay = weekdayIndex(parseLocal(startDate));
+                                    const newDay = weekdayIndex(parseLocal(e.target.value));
+                                    setRepeat((r) => (r.days.length === 1 && r.days[0] === oldDay ? {...r, days: [newDay]} : r));
                                     setStartDate(e.target.value);
                                 }}
                             />
@@ -208,6 +270,148 @@ function ScheduleCallForm({target, onDone}: FormProps) {
                             />
                         </label>
                     </div>
+                    <label
+                        className={am('field')}
+                        htmlFor='amc-call-repeat'
+                    >
+                        <span>{formatMessage(messages.repeat)}</span>
+                        <select
+                            id='amc-call-repeat'
+                            className={own('input')}
+                            value={repeatChoice}
+                            onChange={(e) => {
+                                const choice = e.target.value as RepeatChoice;
+                                setRepeatChoice(choice);
+                                if (choice !== 'custom') {
+                                    setRepeatField('freq', choice);
+                                }
+                            }}
+                        >
+                            <option value='none'>{formatMessage(messages.repeatNone)}</option>
+                            <option value='daily'>{formatMessage(messages.repeatDaily)}</option>
+                            <option value='weekly'>{formatMessage(messages.repeatWeekly)}</option>
+                            <option value='monthly'>{formatMessage(messages.repeatMonthly)}</option>
+                            {repeatChoice === 'custom' && <option value='custom'>{formatMessage(messages.repeatCustom)}</option>}
+                        </select>
+                    </label>
+                    {repeatChoice !== 'none' && repeatChoice !== 'custom' && (
+                        <div className={own('repeat-options')}>
+                            <div className={own('field-row')}>
+                                <div className={own('inline')}>
+                                    <label
+                                        className={am('field')}
+                                        htmlFor='amc-call-interval'
+                                    >
+                                        <span>{formatMessage(messages.repeatEvery)}</span>
+                                        <input
+                                            id='amc-call-interval'
+                                            type='number'
+                                            className={own('input', 'number')}
+                                            min={1}
+                                            max={MAX_INTERVAL}
+                                            required={true}
+                                            value={repeat.interval}
+                                            onChange={(e) => setRepeatField('interval', Number(e.target.value))}
+                                        />
+                                    </label>
+                                    <span className={own('unit')}>{formatMessage(unit, {count: repeat.interval})}</span>
+                                </div>
+                                <label
+                                    className={am('field')}
+                                    htmlFor='amc-call-repeat-ends'
+                                >
+                                    <span>{formatMessage(messages.repeatEnds)}</span>
+                                    <select
+                                        id='amc-call-repeat-ends'
+                                        className={own('input')}
+                                        value={repeat.ends}
+                                        onChange={(e) => setRepeatField('ends', e.target.value as RepeatEnds)}
+                                    >
+                                        <option value='never'>{formatMessage(messages.repeatEndsNever)}</option>
+                                        <option value='on'>{formatMessage(messages.repeatEndsOn)}</option>
+                                        <option value='after'>{formatMessage(messages.repeatEndsAfter)}</option>
+                                    </select>
+                                </label>
+                            </div>
+                            {repeat.freq === 'weekly' && (
+                                <div
+                                    className={own('weekdays')}
+                                    role='group'
+                                    aria-label={formatMessage(messages.repeatOn)}
+                                >
+                                    {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+                                        <button
+                                            key={day}
+                                            type='button'
+                                            className={am('chip-btn', {on: repeat.days.includes(day)})}
+                                            aria-pressed={repeat.days.includes(day)}
+                                            aria-label={weekdayName(day, locale)}
+                                            onClick={() => toggleDay(day)}
+                                        >
+                                            {weekdayName(day, locale, 'short')}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {repeat.ends === 'on' && (
+                                <label
+                                    className={am('field')}
+                                    htmlFor='amc-call-repeat-until'
+                                >
+                                    <span>{formatMessage(messages.repeatUntil)}</span>
+                                    <input
+                                        id='amc-call-repeat-until'
+                                        type='date'
+                                        className={own('input')}
+                                        required={true}
+                                        min={startDate}
+                                        max={dateInput(addDays(parseLocal(startDate), MAX_REPEAT_DAYS))}
+                                        value={repeat.until}
+                                        onChange={(e) => setRepeatField('until', e.target.value)}
+                                    />
+                                </label>
+                            )}
+                            {repeat.ends === 'after' && (
+                                <label
+                                    className={am('field')}
+                                    htmlFor='amc-call-repeat-count'
+                                >
+                                    <span>{formatMessage(messages.repeatCount)}</span>
+                                    <input
+                                        id='amc-call-repeat-count'
+                                        type='number'
+                                        className={own('input', 'number')}
+                                        min={1}
+                                        max={MAX_COUNT}
+                                        required={true}
+                                        value={repeat.count}
+                                        onChange={(e) => setRepeatField('count', Number(e.target.value))}
+                                    />
+                                </label>
+                            )}
+                        </div>
+                    )}
+                    <label
+                        className={am('field')}
+                        htmlFor='amc-call-reminder'
+                    >
+                        <span>{formatMessage(messages.alarm)}</span>
+                        <select
+                            id='amc-call-reminder'
+                            className={own('input')}
+                            value={String(reminder)}
+                            onChange={(e) => setReminder(Number(e.target.value))}
+                        >
+                            {REMINDER_CHOICES.map((minutes) => (
+                                <option
+                                    key={minutes}
+                                    value={String(minutes)}
+                                >
+                                    {reminderLabel(intl, minutes)}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
                     <label
                         className={am('field')}
                         htmlFor='amc-call-description'

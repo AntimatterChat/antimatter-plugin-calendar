@@ -23,6 +23,14 @@ func newMeetingTestEnv(t *testing.T) *testEnv {
 	return e
 }
 
+// notAnAdmin mocks the caller holding none of the roles that may cancel a meeting (see
+// canCancelMeeting), for the tests whose response computes can_cancel for a plain member.
+func (e *testEnv) notAnAdmin(channelID string) {
+	e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false).Maybe()
+	e.api.On("GetChannelMember", channelID, e.userID).Return(&model.ChannelMember{}, nil).Maybe()
+	e.api.On("GetChannel", channelID).Return(&model.Channel{Id: channelID}, nil).Maybe()
+}
+
 func meetingBody(start time.Time) map[string]any {
 	return map[string]any{
 		"summary":     "Team sync",
@@ -60,6 +68,9 @@ func TestHandleCreateMeeting(t *testing.T) {
 	e.api.On("CreatePost", mock.MatchedBy(func(post *model.Post) bool {
 		return post.UserId == e.p.botID && post.ChannelId == channelID && post.Type == meetingPostType
 	})).Return(&model.Post{Id: model.NewId()}, nil)
+	// A new call tells the channel's open clients too (the header's next call, the community
+	// calendar), not only edits and RSVPs.
+	e.api.On("PublishWebSocketEvent", meetingChangedEvent, mock.Anything, &model.WebsocketBroadcast{ChannelId: channelID}).Return().Once()
 
 	start := time.Now().Add(time.Hour)
 	w := e.request(t, http.MethodPost, "/api/v1/channels/"+channelID+"/meetings", meetingBody(start))
@@ -292,11 +303,17 @@ func TestHandleSetRSVP(t *testing.T) {
 
 	e.api.On("HasPermissionToChannel", e.userID, channelID, model.PermissionReadChannel).Return(true)
 	e.api.On("PublishWebSocketEvent", meetingChangedEvent, mock.Anything, &model.WebsocketBroadcast{ChannelId: channelID}).Return()
+	e.notAnAdmin(channelID)
 
 	w := e.request(t, http.MethodPost, "/api/v1/meetings/"+m.ID+"/rsvp", map[string]string{"status": "maybe"})
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	updated := decode[Meeting](t, w)
+	updated := decode[meetingView](t, w)
 	assert.Equal(t, RSVPMaybe, updated.RSVPs[e.userID].Status)
+	assert.Equal(t, RSVPMaybe, updated.MyRSVP, "the caller's own answer, for the next occurrence")
+	assert.False(t, updated.MyRSVPNextOnly)
+	assert.Equal(t, m.Start, updated.NextStart)
+	assert.Equal(t, m.End, updated.NextEnd)
+	assert.False(t, updated.CanCancel)
 
 	w = e.request(t, http.MethodPost, "/api/v1/meetings/"+m.ID+"/rsvp", map[string]string{"status": "sure!"})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -407,4 +424,24 @@ func TestSendMeetingInvites(t *testing.T) {
 	assert.Contains(t, string(sentData), "METHOD:REQUEST")
 	assert.Contains(t, string(sentData), "mailto:grace@example.com")
 	assert.Contains(t, string(sentData), "mailto:ada@example.com")
+}
+
+// TestMeetingViewNextOnlyRSVP checks the view's own-RSVP fields for a series: a "next call only"
+// answer shows as the caller's RSVP for the next occurrence, flagged as such.
+func TestMeetingViewNextOnlyRSVP(t *testing.T) {
+	e := newMeetingTestEnv(t)
+	m := testRecurringMeeting("FREQ=WEEKLY")
+	m.RSVPs = map[string]RSVP{e.userID: {Status: RSVPGoing}}
+	m.NextRSVPs = map[string]occurrenceRSVP{e.userID: {RSVP: RSVP{Status: RSVPNo}, OccurrenceStart: m.Start}}
+	e.notAnAdmin(m.ChannelID)
+
+	view := e.p.newMeetingView(e.userID, m)
+	assert.Equal(t, m.Start, view.NextStart)
+	assert.Equal(t, RSVPNo, view.MyRSVP)
+	assert.True(t, view.MyRSVPNextOnly)
+
+	cancelled := testMeeting()
+	cancelled.Cancelled = true
+	view = e.p.newMeetingView(e.userID, cancelled)
+	assert.Zero(t, view.NextStart, "a cancelled call has no next occurrence")
 }
