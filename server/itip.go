@@ -168,13 +168,7 @@ func buildMeetingICS(m *Meeting, organizer invitee, attendees []invitee, now tim
 	}
 
 	if !cancelled && opts.ReminderMinutes != noReminderMinutes {
-		alarm := ical.NewComponent(ical.CompAlarm)
-		alarm.Props.SetText(ical.PropAction, "DISPLAY")
-		alarm.Props.SetText(ical.PropDescription, m.Summary)
-		trigger := ical.NewProp(ical.PropTrigger)
-		trigger.Value = fmt.Sprintf("-PT%dM", opts.ReminderMinutes)
-		alarm.Props.Set(trigger)
-		ev.Children = append(ev.Children, alarm)
+		ev.Children = append(ev.Children, meetingAlarm(m.Summary, opts.ReminderMinutes))
 	}
 
 	setRaw(ev.Props, propChannelID, m.ChannelID)
@@ -182,6 +176,18 @@ func buildMeetingICS(m *Meeting, organizer invitee, attendees []invitee, now tim
 
 	cal.Children = append(cal.Children, ev.Component)
 	return cal
+}
+
+// meetingAlarm returns the VALARM of a meeting for one person: a display alarm, minutes before
+// each occurrence.
+func meetingAlarm(summary string, minutes int) *ical.Component {
+	alarm := ical.NewComponent(ical.CompAlarm)
+	alarm.Props.SetText(ical.PropAction, "DISPLAY")
+	alarm.Props.SetText(ical.PropDescription, summary)
+	trigger := ical.NewProp(ical.PropTrigger)
+	trigger.Value = fmt.Sprintf("-PT%dM", minutes)
+	alarm.Props.Set(trigger)
+	return alarm
 }
 
 // encodeICS serializes a calendar object to bytes, as RFC 5545 requires (CRLF line endings).
