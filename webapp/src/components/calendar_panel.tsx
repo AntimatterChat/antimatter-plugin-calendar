@@ -1,7 +1,7 @@
 // Copyright (c) 2026-present Antimatter contributors.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {useSelector} from 'react-redux';
 
@@ -16,6 +16,7 @@ import {addDays, calendarColor, startOfDay, startOfWeek} from '../utils';
 import {isFusionUI} from '../web_ui';
 
 import AccountForm from './account_form';
+import CommunityLayerMenu from './community_layer_menu';
 import EmptyState from './fusion/empty_state';
 import {iconTip} from './fusion/tip';
 import Agenda, {UPCOMING_DAYS} from './agenda';
@@ -186,6 +187,7 @@ export default function CalendarPanel() {
     const step = (direction: number) => setDay((d) => addDays(d, direction * (mode === 'week' ? 7 : 1)));
     const reload = () => setReloadKey((k) => k + 1);
     const layers = teamId ? [...calendars, communityLayer(formatMessage(messages.communityCalls))] : calendars;
+
     // Subscribe… sits in the Community calls layer's own menu, and only when the server allows feeds.
     const subscribable = Boolean(teamId) && feedsEnabled;
     const calendarName = (id: string) => layers.find((c) => c.id === id)?.name || id;
@@ -415,71 +417,5 @@ export default function CalendarPanel() {
                 />
             )}
         </div>
-    );
-}
-
-// CommunityLayerMenu is the Community calls layer's own menu, beside its chip: Subscribe… (the
-// layer's private calendar link), its one entry.
-function CommunityLayerMenu({onSubscribe}: {onSubscribe: () => void}) {
-    const {formatMessage} = useIntl();
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLSpanElement>(null);
-
-    useEffect(() => {
-        if (!open) {
-            return undefined;
-        }
-        const onMouseDown = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) {
-                setOpen(false);
-            }
-        };
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                e.stopPropagation();
-                setOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', onMouseDown);
-        document.addEventListener('keydown', onKeyDown, true);
-        return () => {
-            document.removeEventListener('mousedown', onMouseDown);
-            document.removeEventListener('keydown', onKeyDown, true);
-        };
-    }, [open]);
-
-    return (
-        <span ref={ref}>
-            <button
-                className={am('icon-btn') + ' ' + own('layer-menu-btn')}
-                {...iconTip(formatMessage(messages.communityCallsMenu))}
-                aria-haspopup='menu'
-                aria-expanded={open}
-                onClick={() => setOpen((o) => !o)}
-            >
-                <Icon
-                    name='dots'
-                    size='sm'
-                />
-            </button>
-            {open && (
-                <div
-                    className={own('layer-menu')}
-                    role='menu'
-                    aria-label={formatMessage(messages.communityCallsMenu)}
-                >
-                    <button
-                        role='menuitem'
-                        autoFocus={true}
-                        onClick={() => {
-                            setOpen(false);
-                            onSubscribe();
-                        }}
-                    >
-                        {formatMessage(messages.subscribe)}
-                    </button>
-                </div>
-            )}
-        </span>
     );
 }
