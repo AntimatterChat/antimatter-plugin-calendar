@@ -305,6 +305,10 @@ func (s *reminderService) remindMeetingMembers(m *Meeting, now time.Time) {
 		s.p.API.LogWarn("Failed to read a meeting's channel for its reminder", "err", appErr.Error())
 		return
 	}
+	if channel.DeleteAt != 0 {
+		// An archived channel's calls remind nobody.
+		return
+	}
 	link := &EventLink{ChannelID: channel.Id, ChannelName: channel.Name, DisplayName: channel.DisplayName, ChannelType: string(channel.Type)}
 	if channel.TeamId != "" {
 		if team, appErr := s.p.API.GetTeam(channel.TeamId); appErr == nil {
@@ -345,11 +349,19 @@ func (s *reminderService) remindMeetingMembers(m *Meeting, now time.Time) {
 
 // sendMeetingDM posts a meeting's reminder in a member's direct channel with the Calendar bot.
 func (s *reminderService) sendMeetingDM(userID string, m *Meeting, channel *model.Channel, permalink string, occurrenceStart time.Time, now time.Time) error {
+	user, appErr := s.p.API.GetUser(userID)
+	if appErr != nil {
+		return errors.Wrap(appErr, "failed to get the user")
+	}
+	if user.DeleteAt != 0 || user.IsBot {
+		// As for personal events: deactivated users (and bots in the channel) get no reminders.
+		return nil
+	}
 	dm, appErr := s.p.API.GetDirectChannel(userID, s.p.botID)
 	if appErr != nil {
 		return errors.Wrap(appErr, "failed to get the direct channel")
 	}
-	loc, locale := s.userSettings(userID)
+	loc, locale := userLocation(user), user.Locale
 	message := meetingReminderMessage(newTranslator(s.p.translations, locale), m, occurrenceStart, now, loc, channel, permalink)
 
 	post := &model.Post{

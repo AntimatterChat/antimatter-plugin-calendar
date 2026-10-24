@@ -159,7 +159,7 @@ func TestRemindersRun(t *testing.T) {
 }
 
 // TestMeetingRemindersRun checks that a scheduled meeting's reminder goes out to the channel's
-// members, except the ones who declined, once, at the right time.
+// members, except the ones who declined, deactivated users and bots, once, at the right time.
 func TestMeetingRemindersRun(t *testing.T) {
 	e := newTestEnv(t)
 	e.p.botID = model.NewId()
@@ -173,7 +173,7 @@ func TestMeetingRemindersRun(t *testing.T) {
 	channel := &model.Channel{Id: channelID, Name: "standup", DisplayName: "Standup", Type: model.ChannelTypeOpen}
 	start := time.Date(2026, 10, 5, 11, 0, 0, 0, paris)
 
-	goingUser, decliningUser := model.NewId(), model.NewId()
+	goingUser, decliningUser, deactivatedUser, botUser := model.NewId(), model.NewId(), model.NewId(), model.NewId()
 	m := &Meeting{
 		ID: "meeting1", ChannelID: channelID, OrganizerID: model.NewId(),
 		Summary: "Team sync", Start: start.UnixMilli(), End: start.Add(30 * time.Minute).UnixMilli(),
@@ -185,7 +185,12 @@ func TestMeetingRemindersRun(t *testing.T) {
 	e.api.On("GetChannelMembers", channelID, 0, 200).Return(model.ChannelMembers{
 		{ChannelId: channelID, UserId: goingUser},
 		{ChannelId: channelID, UserId: decliningUser},
+		{ChannelId: channelID, UserId: deactivatedUser},
+		{ChannelId: channelID, UserId: botUser},
 	}, nil)
+	// Neither gets a direct channel or a post (no GetDirectChannel mock for them).
+	e.api.On("GetUser", deactivatedUser).Return(&model.User{Id: deactivatedUser, DeleteAt: 1}, nil)
+	e.api.On("GetUser", botUser).Return(&model.User{Id: botUser, IsBot: true}, nil)
 
 	goingDM := &model.Channel{Id: model.NewId(), Type: model.ChannelTypeDirect}
 	e.api.On("GetUser", goingUser).Return(&model.User{
@@ -205,4 +210,23 @@ func TestMeetingRemindersRun(t *testing.T) {
 	// Still within the grace period, but already sent: not sent again (the CreatePost mock above
 	// is Once(), so a second attempt would fail this test).
 	e.p.reminders.runMeetingReminders(start.Add(-9 * time.Minute))
+}
+
+// TestMeetingRemindersArchivedChannel checks that a call in an archived channel reminds nobody.
+func TestMeetingRemindersArchivedChannel(t *testing.T) {
+	e := newTestEnv(t)
+	e.p.botID = model.NewId()
+	e.p.reminders = newReminderService(e.p)
+
+	channelID := model.NewId()
+	start := time.Now().Add(10 * time.Minute).Truncate(time.Second)
+	m := &Meeting{
+		ID: "meeting1", ChannelID: channelID, OrganizerID: model.NewId(),
+		Summary: "Team sync", Start: start.UnixMilli(), End: start.Add(30 * time.Minute).UnixMilli(),
+	}
+	require.NoError(t, e.p.store.CreateMeeting(m))
+	e.api.On("GetChannel", channelID).Return(&model.Channel{Id: channelID, Type: model.ChannelTypeOpen, DeleteAt: 1}, nil)
+
+	// No GetChannelMembers, GetUser or CreatePost mock: any of them would fail the test.
+	e.p.reminders.runMeetingReminders(start.Add(-10 * time.Minute))
 }
