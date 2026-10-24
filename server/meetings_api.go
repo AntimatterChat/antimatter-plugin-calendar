@@ -337,7 +337,7 @@ func (p *Plugin) canCancelMeeting(userID string, m *Meeting) bool {
 	if appErr != nil || channel.TeamId == "" {
 		return false
 	}
-	if teamMember, appErr := p.API.GetTeamMember(channel.TeamId, userID); appErr == nil && teamMember != nil && teamMember.SchemeAdmin {
+	if teamMember, appErr := p.API.GetTeamMember(channel.TeamId, userID); appErr == nil && teamMember != nil && teamMember.DeleteAt == 0 && teamMember.SchemeAdmin {
 		return true
 	}
 	return false

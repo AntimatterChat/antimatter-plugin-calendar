@@ -161,6 +161,15 @@ func TestCanCancelMeeting(t *testing.T) {
 			},
 			want: true,
 		},
+		"a former admin of that community (left it)": {
+			setup: func(e *testEnv) {
+				e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false)
+				e.api.On("GetChannelMember", channelID, e.userID).Return(nil, model.NewAppError("test", "test.not_a_member", nil, "", http.StatusNotFound))
+				e.api.On("GetChannel", channelID).Return(channel, nil)
+				e.api.On("GetTeamMember", teamID, e.userID).Return(&model.TeamMember{SchemeAdmin: true, DeleteAt: 1}, nil)
+			},
+			want: false,
+		},
 		"a plain member": {
 			setup: func(e *testEnv) {
 				e.api.On("HasPermissionTo", e.userID, model.PermissionManageSystem).Return(false)
