@@ -478,6 +478,69 @@ func TestOrganizerInviteeHidesTheAddress(t *testing.T) {
 	}
 }
 
+// TestMeetingInvitesListOnlyTheirRecipient checks that every invitation, and every occurrence's
+// cancellation, lists its recipient alone as an attendee: no member's email address (or answer)
+// reaches another member through the .ics, whatever their privacy settings.
+func TestMeetingInvitesListOnlyTheirRecipient(t *testing.T) {
+	e := newMeetingTestEnv(t)
+	channelID := model.NewId()
+	channel := &model.Channel{Id: channelID, Name: "standup", DisplayName: "Standup", Type: model.ChannelTypeOpen}
+	organizer := &model.User{Id: model.NewId(), Username: "ada", Email: "ada@example.com", Locale: "en"}
+
+	members := map[string]string{model.NewId(): "grace@example.com", model.NewId(): "katherine@example.com"}
+	var channelMembers model.ChannelMembers
+	for id, email := range members {
+		require.NoError(t, e.p.store.SaveAccount(id, &Account{
+			URL: "https://dav.example.com", Username: email, HomeSetURL: "https://dav.example.com/cal/", Password: "x", EmailInvites: true,
+		}))
+		channelMembers = append(channelMembers, model.ChannelMember{ChannelId: channelID, UserId: id})
+		e.api.On("GetUser", id).Return(&model.User{Id: id, Email: email, Username: email, Locale: "en"}, nil)
+	}
+	e.api.On("GetChannel", channelID).Return(channel, nil)
+	e.api.On("GetChannelMembers", channelID, 0, 200).Return(channelMembers, nil)
+	e.api.On("GetConfig").Return(showEmailConfig(false))
+	e.api.On("HasPermissionToChannel", organizer.Id, channelID, model.PermissionReadChannel).Return(true)
+
+	sent := map[string]string{}
+	e.api.On("SendMailWithAttachment", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("[]uint8")).
+		Run(func(args mock.Arguments) {
+			data, _ := args.Get(5).([]byte)
+			sent[args.String(0)] = string(data)
+		}).
+		Return(nil)
+
+	m := testMeeting()
+	m.ChannelID = channelID
+	m.OrganizerID = organizer.Id
+
+	check := func(t *testing.T) {
+		t.Helper()
+		require.Len(t, sent, len(members))
+		for to, ics := range sent {
+			assert.Contains(t, ics, "mailto:"+to)
+			assert.NotContains(t, ics, organizer.Email, "the organiser's address is hidden while the server hides email addresses")
+			assert.Contains(t, ics, "mailto:feedback@example.com")
+			for _, other := range members {
+				if other != to {
+					assert.NotContains(t, ics, other, "another member's address must not be in %s's invitation", to)
+				}
+			}
+		}
+	}
+
+	t.Run("invitation", func(t *testing.T) {
+		clear(sent)
+		e.p.sendMeetingInvites(m, channel, organizer, organizer)
+		check(t)
+	})
+	t.Run("an occurrence's cancellation", func(t *testing.T) {
+		clear(sent)
+		start := time.UnixMilli(m.Start)
+		e.p.sendOccurrenceCancellationEmails(m, channel, organizer, organizer, false, start, start.Add(time.Hour))
+		check(t)
+	})
+}
+
 // TestMeetingViewNextOnlyRSVP checks the view's own-RSVP fields for a series: a "next call only"
 // answer shows as the caller's RSVP for the next occurrence, flagged as such.
 func TestMeetingViewNextOnlyRSVP(t *testing.T) {

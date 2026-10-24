@@ -797,7 +797,6 @@ func (p *Plugin) sendOccurrenceCancellationEmails(m *Meeting, channel *model.Cha
 		return
 	}
 
-	var invitees []invitee
 	recipients := map[string]*model.User{}
 	for _, id := range ids {
 		account, err := p.store.GetAccount(id)
@@ -808,11 +807,9 @@ func (p *Plugin) sendOccurrenceCancellationEmails(m *Meeting, channel *model.Cha
 		if appErr != nil || user.Email == "" || user.DeleteAt != 0 {
 			continue
 		}
-		rsvp, _ := m.effectiveRSVP(id, occurrenceStart.UnixMilli())
-		invitees = append(invitees, invitee{Email: user.Email, Name: user.GetFullName(), RSVP: rsvp.Status})
 		recipients[id] = user
 	}
-	if len(invitees) == 0 {
+	if len(recipients) == 0 {
 		return
 	}
 
@@ -820,15 +817,18 @@ func (p *Plugin) sendOccurrenceCancellationEmails(m *Meeting, channel *model.Cha
 	permalink := p.permalink(p.channelLink(m.OrganizerID, channel.Id))
 	now := time.Now()
 
-	for _, user := range recipients {
+	for id, user := range recipients {
 		loc, err := time.LoadLocation(user.GetPreferredTimezone())
 		if err != nil {
 			loc = time.UTC
 		}
 		t := newTranslator(p.translations, user.Locale)
 
+		// As sendMeetingInvites: the recipient is the only attendee listed.
+		rsvp, _ := m.effectiveRSVP(id, occurrenceStart.UnixMilli())
+		you := invitee{Email: user.Email, Name: user.GetFullName(), RSVP: rsvp.Status}
 		opts := meetingICSOptions{OccurrenceStart: occurrenceStart, OccurrenceEnd: occurrenceEnd}
-		cal := buildMeetingICS(m, organizerParty, invitees, now, permalink, opts)
+		cal := buildMeetingICS(m, organizerParty, []invitee{you}, now, permalink, opts)
 		data, err := encodeICS(cal)
 		if err != nil {
 			p.API.LogWarn("Failed to build an occurrence's cancellation", "err", err.Error())

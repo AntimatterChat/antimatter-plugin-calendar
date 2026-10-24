@@ -74,7 +74,6 @@ func (p *Plugin) sendMeetingInvites(m *Meeting, channel *model.Channel, organize
 		return
 	}
 
-	var invitees []invitee
 	recipients := map[string]*model.User{}
 	for _, id := range ids {
 		account, err := p.store.GetAccount(id)
@@ -85,10 +84,9 @@ func (p *Plugin) sendMeetingInvites(m *Meeting, channel *model.Channel, organize
 		if appErr != nil || user.Email == "" || user.DeleteAt != 0 {
 			continue
 		}
-		invitees = append(invitees, invitee{Email: user.Email, Name: user.GetFullName(), RSVP: m.RSVPs[id].Status})
 		recipients[id] = user
 	}
-	if len(invitees) == 0 {
+	if len(recipients) == 0 {
 		return
 	}
 
@@ -104,8 +102,11 @@ func (p *Plugin) sendMeetingInvites(m *Meeting, channel *model.Channel, organize
 		}
 		t := newTranslator(p.translations, user.Locale)
 
+		// Each recipient's invitation lists them alone as an attendee: the other members'
+		// addresses and answers are never sent to anyone.
+		you := invitee{Email: user.Email, Name: user.GetFullName(), RSVP: m.RSVPs[id].Status}
 		opts := meetingICSOptions{ReminderMinutes: m.effectiveReminderMinutes(id)}
-		cal := buildMeetingICS(m, organizerParty, invitees, now, permalink, opts)
+		cal := buildMeetingICS(m, organizerParty, []invitee{you}, now, permalink, opts)
 		data, err := encodeICS(cal)
 		if err != nil {
 			p.API.LogWarn("Failed to build a meeting's invitation", "err", err.Error())
