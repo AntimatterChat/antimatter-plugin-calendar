@@ -19,6 +19,7 @@ const paths: Record<string, React.ReactNode> = {
     right: (<path d='M9 6l6 6-6 6'/>),
     repeat: (<path d='M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3'/>),
     refresh: (<path d='M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4'/>),
+    dots: (<path d='M5 12h.01M12 12h.01M19 12h.01'/>),
 };
 
 export type IconName = keyof typeof paths;
@@ -35,6 +36,7 @@ const sprite: Partial<Record<IconName, {name: string; turn?: number}>> = {
     back: {name: 'chev', turn: 90},
     left: {name: 'chev', turn: 90},
     right: {name: 'chev', turn: -90},
+    dots: {name: 'dots'},
 };
 
 type Props = {

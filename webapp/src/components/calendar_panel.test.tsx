@@ -1,7 +1,7 @@
 // Copyright (c) 2026-present Antimatter contributors.
 // See LICENSE.txt for license information.
 
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import React from 'react';
 import {IntlProvider} from 'react-intl';
 
@@ -25,6 +25,8 @@ jest.mock('../client', () => ({
     getCalendars: jest.fn(),
     getEvents: jest.fn(),
     getCommunityCalls: jest.fn(),
+    getFeed: jest.fn(),
+    createFeed: jest.fn(),
 }));
 
 const mocked = client as jest.Mocked<typeof client>;
@@ -239,6 +241,71 @@ describe('CalendarPanel', () => {
             act(() => meetingChanged('meeting1'));
             await waitFor(() => expect(mocked.getCommunityCalls).toHaveBeenCalledTimes(2));
             expect(await screen.findByText('Standup sync (moved)')).toBeInTheDocument();
+        });
+
+        test('Subscribe… is the one entry of the layer\'s own menu, and opens the private link\'s dialog', async () => {
+            mocked.getConfig.mockResolvedValue({reminders_enabled: true, allow_insecure_connections: false, calendar_feeds_enabled: true});
+            mocked.getFeed.mockResolvedValue({exists: false});
+            mocked.createFeed.mockResolvedValue({url: 'https://chat.example.com/plugins/com.antimatterchat.calendar/feeds/abc.ics', path: '/plugins/com.antimatterchat.calendar/feeds/abc.ics', created_at: 1});
+            renderPanel();
+            await screen.findByText('Standup sync');
+
+            const menuButton = screen.getByRole('button', {name: 'Community calls options'});
+            expect(menuButton).toHaveAttribute('aria-haspopup', 'menu');
+            expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+            expect(screen.queryByRole('menuitem', {name: 'Subscribe…'})).not.toBeInTheDocument();
+
+            fireEvent.click(menuButton);
+            const menu = screen.getByRole('menu', {name: 'Community calls options'});
+            expect(within(menu).getAllByRole('menuitem')).toHaveLength(1);
+            expect(screen.getAllByText('Subscribe…')).toHaveLength(1);
+            expect(mocked.getFeed).not.toHaveBeenCalled();
+
+            fireEvent.click(within(menu).getByRole('menuitem', {name: 'Subscribe…'}));
+            expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'Subscribe to community calls'})).toBeInTheDocument();
+            expect(await screen.findByLabelText('Calendar link')).toHaveValue('https://chat.example.com/plugins/com.antimatterchat.calendar/feeds/abc.ics');
+            expect(mocked.getFeed).toHaveBeenCalledWith('team1');
+
+            fireEvent.click(screen.getByRole('button', {name: 'Close'}));
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
+
+        test('the layer\'s menu closes on Escape or a click elsewhere', async () => {
+            mocked.getConfig.mockResolvedValue({reminders_enabled: true, allow_insecure_connections: false, calendar_feeds_enabled: true});
+            renderPanel();
+            await screen.findByText('Standup sync');
+
+            fireEvent.click(screen.getByRole('button', {name: 'Community calls options'}));
+            fireEvent.keyDown(document, {key: 'Escape'});
+            expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole('button', {name: 'Community calls options'}));
+            fireEvent.mouseDown(document.body);
+            expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+        });
+
+        test('the layer and its menu show without a calendar account when feeds are allowed', async () => {
+            mocked.getAccount.mockResolvedValue(null);
+            mocked.getConfig.mockResolvedValue({reminders_enabled: true, allow_insecure_connections: false, calendar_feeds_enabled: true});
+            renderPanel();
+            await screen.findByText('Standup sync');
+
+            expect(screen.getByRole('button', {name: 'Community calls'})).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Community calls options'})).toBeInTheDocument();
+        });
+
+        test.each([
+            ['turned off', false],
+            ['not said (an older server)', undefined],
+        ])('there\'s no Subscribe when feeds are %s', async (_, enabled) => {
+            mocked.getConfig.mockResolvedValue({reminders_enabled: true, allow_insecure_connections: false, calendar_feeds_enabled: enabled});
+            renderPanel();
+            await screen.findByText('Standup sync');
+
+            expect(screen.getByRole('button', {name: 'Community calls'})).toBeInTheDocument();
+            expect(screen.queryByRole('button', {name: 'Community calls options'})).not.toBeInTheDocument();
+            expect(screen.queryByText('Subscribe…')).not.toBeInTheDocument();
         });
 
         test('a failure to read them is said, without hiding the personal events', async () => {

@@ -1,7 +1,7 @@
 // Copyright (c) 2026-present Antimatter contributors.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {useSelector} from 'react-redux';
 
@@ -22,6 +22,7 @@ import Agenda, {UPCOMING_DAYS} from './agenda';
 import EventEditor from './event_editor';
 import Icon from './icon';
 import {messages} from './messages';
+import SubscribeDialog from './subscribe_dialog';
 import Week from './week';
 
 type Mode = 'agenda' | 'week';
@@ -77,6 +78,7 @@ export default function CalendarPanel() {
     const [account, setAccount] = useState<Account | null>(null);
     const [loaded, setLoaded] = useState(false);
     const [remindersEnabled, setRemindersEnabled] = useState(true);
+    const [feedsEnabled, setFeedsEnabled] = useState(false);
     const [calendars, setCalendars] = useState<Calendar[]>([]);
     const [mode, setMode] = useState<Mode>('agenda');
     const [day, setDay] = useState(() => startOfDay(new Date()));
@@ -90,6 +92,7 @@ export default function CalendarPanel() {
     const [communityEvents, setCommunityEvents] = useState<Occurrence[]>([]);
     const [communityError, setCommunityError] = useState('');
     const [callsChanged, setCallsChanged] = useState(0);
+    const [subscribing, setSubscribing] = useState(false);
 
     const loadAccount = useCallback(async () => {
         setError('');
@@ -97,6 +100,7 @@ export default function CalendarPanel() {
             const [loadedAccount, config] = await Promise.all([client.getAccount(), client.getConfig()]);
             setAccount(loadedAccount);
             setRemindersEnabled(config.reminders_enabled);
+            setFeedsEnabled(config.calendar_feeds_enabled === true);
             setLoaded(true);
         } catch (err) {
             setError((err as Error).message);
@@ -182,6 +186,8 @@ export default function CalendarPanel() {
     const step = (direction: number) => setDay((d) => addDays(d, direction * (mode === 'week' ? 7 : 1)));
     const reload = () => setReloadKey((k) => k + 1);
     const layers = teamId ? [...calendars, communityLayer(formatMessage(messages.communityCalls))] : calendars;
+    // Subscribe… sits in the Community calls layer's own menu, and only when the server allows feeds.
+    const subscribable = Boolean(teamId) && feedsEnabled;
     const calendarName = (id: string) => layers.find((c) => c.id === id)?.name || id;
     const toggleCalendar = (id: string) => {
         const next = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
@@ -323,22 +329,36 @@ export default function CalendarPanel() {
                     </button>
                 </div>
                 {error && <div className={own('error')}>{error}</div>}
-                {layers.length > 1 && (
+                {(layers.length > 1 || subscribable) && (
                     <div className={own('calendars')}>
-                        {layers.map((c) => (
-                            <button
-                                key={c.id}
-                                className={am('chip-btn', {on: !hidden.includes(c.id)})}
-                                aria-pressed={!hidden.includes(c.id)}
-                                onClick={() => toggleCalendar(c.id)}
-                            >
-                                <i
-                                    className={own('dot')}
-                                    style={{background: calendarColor(layers, c.id)}}
-                                />
-                                {c.name}
-                            </button>
-                        ))}
+                        {layers.map((c) => {
+                            const chip = (
+                                <button
+                                    key={c.id}
+                                    className={am('chip-btn', {on: !hidden.includes(c.id)})}
+                                    aria-pressed={!hidden.includes(c.id)}
+                                    onClick={() => toggleCalendar(c.id)}
+                                >
+                                    <i
+                                        className={own('dot')}
+                                        style={{background: calendarColor(layers, c.id)}}
+                                    />
+                                    {c.name}
+                                </button>
+                            );
+                            if (c.id !== COMMUNITY_CALENDAR || !subscribable) {
+                                return chip;
+                            }
+                            return (
+                                <span
+                                    key={c.id}
+                                    className={own('layer')}
+                                >
+                                    {chip}
+                                    <CommunityLayerMenu onSubscribe={() => setSubscribing(true)}/>
+                                </span>
+                            );
+                        })}
                     </div>
                 )}
                 {allFailures.map((f) => (
@@ -388,6 +408,78 @@ export default function CalendarPanel() {
             style={{'--am-cc': APP_COLOR} as React.CSSProperties}
         >
             {content}
+            {subscribing && subscribable && (
+                <SubscribeDialog
+                    teamId={teamId}
+                    onClose={() => setSubscribing(false)}
+                />
+            )}
         </div>
+    );
+}
+
+// CommunityLayerMenu is the Community calls layer's own menu, beside its chip: Subscribe… (the
+// layer's private calendar link), its one entry.
+function CommunityLayerMenu({onSubscribe}: {onSubscribe: () => void}) {
+    const {formatMessage} = useIntl();
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLSpanElement>(null);
+
+    useEffect(() => {
+        if (!open) {
+            return undefined;
+        }
+        const onMouseDown = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('keydown', onKeyDown, true);
+        return () => {
+            document.removeEventListener('mousedown', onMouseDown);
+            document.removeEventListener('keydown', onKeyDown, true);
+        };
+    }, [open]);
+
+    return (
+        <span ref={ref}>
+            <button
+                className={am('icon-btn') + ' ' + own('layer-menu-btn')}
+                {...iconTip(formatMessage(messages.communityCallsMenu))}
+                aria-haspopup='menu'
+                aria-expanded={open}
+                onClick={() => setOpen((o) => !o)}
+            >
+                <Icon
+                    name='dots'
+                    size='sm'
+                />
+            </button>
+            {open && (
+                <div
+                    className={own('layer-menu')}
+                    role='menu'
+                    aria-label={formatMessage(messages.communityCallsMenu)}
+                >
+                    <button
+                        role='menuitem'
+                        autoFocus={true}
+                        onClick={() => {
+                            setOpen(false);
+                            onSubscribe();
+                        }}
+                    >
+                        {formatMessage(messages.subscribe)}
+                    </button>
+                </div>
+            )}
+        </span>
     );
 }

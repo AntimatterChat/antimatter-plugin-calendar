@@ -19,6 +19,23 @@ export type AccountRequest = Account & {
 export type ClientConfig = {
     reminders_enabled: boolean;
     allow_insecure_connections: boolean;
+
+    // The "Allow calendar feeds" setting: Subscribe is offered only when it's on.
+    calendar_feeds_enabled?: boolean;
+};
+
+// FeedStatus says whether the person has a calendar feed of a community. Its address can't be read
+// again: the server keeps only a hash of its token.
+export type FeedStatus = {
+    exists: boolean;
+    created_at?: number;
+};
+
+// FeedLink is a new calendar feed, shown once: url is absent when the server has no Site URL.
+export type FeedLink = {
+    url?: string;
+    path: string;
+    created_at: number;
 };
 
 export type Calendar = {
@@ -352,4 +369,19 @@ export type NextCall = {
 
 export async function getNextCall(channelId: string) {
     return (await request<{next: NextCall | null}>('GET', `/channels/${channelId}/meetings/next`)).next;
+}
+
+// getFeed says whether the person has a calendar feed of a community.
+export function getFeed(teamId: string) {
+    return request<FeedStatus>('GET', `/teams/${encodeURIComponent(teamId)}/feed`);
+}
+
+// createFeed makes the person a new calendar feed of a community, revoking the one they had.
+export function createFeed(teamId: string) {
+    return request<FeedLink>('POST', `/teams/${encodeURIComponent(teamId)}/feed`);
+}
+
+// feedURL is a new feed's full address.
+export function feedURL(link: FeedLink): string {
+    return link.url || `${window.location.origin}${window.basename || ''}${link.path}`;
 }

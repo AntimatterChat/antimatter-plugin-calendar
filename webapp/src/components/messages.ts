@@ -158,6 +158,21 @@ export const messages = defineMessages({
 
     // The "Community calls" layer of the calendar panel
     communityCalls: {id: 'calendar.community_calls', defaultMessage: 'Community calls', description: 'Name of the calendar panel\'s layer that shows the calls scheduled in the community\'s channels the person can read, toggled beside their own calendars.'},
+    communityCallsMenu: {id: 'calendar.community_calls.menu', defaultMessage: 'Community calls options', description: 'Accessible label and tooltip of the "⋯" button beside the calendar panel\'s "Community calls" layer, which opens its menu (Subscribe…).'},
+    subscribe: {id: 'calendar.community_calls.subscribe', defaultMessage: 'Subscribe…', description: 'Item of the "Community calls" layer\'s menu: opens a dialog with a private link to add the community\'s scheduled calls to the person\'s own calendar app.'},
+
+    // Subscribing to the community's calls (a private ICS feed)
+    subscribeTitle: {id: 'calendar.subscribe.title', defaultMessage: 'Subscribe to community calls', description: 'Title of the dialog with the private calendar link (ICS feed) of the community\'s scheduled calls.'},
+    subscribeLead: {id: 'calendar.subscribe.lead', defaultMessage: 'Add this link to your calendar app (as a calendar subscription, “from URL”) to see these calls there. It shows only the calls you can see here.', description: 'Sentence under the title of the Subscribe dialog: how to use the link.'},
+    subscribeWarning: {id: 'calendar.subscribe.warning', defaultMessage: 'Anyone with this link can see these calls. Keep it private.', description: 'Warning line in the Subscribe dialog: the calendar link works without signing in.'},
+    subscribeLink: {id: 'calendar.subscribe.link', defaultMessage: 'Calendar link', description: 'Label of the read-only field holding the private calendar link in the Subscribe dialog.'},
+    subscribeHidden: {id: 'calendar.subscribe.hidden', defaultMessage: 'You made a link on {date}. It’s shown only once, when it’s made: reset it to get a new one.', description: 'Shown in the Subscribe dialog instead of the link when the person already made one: the server keeps only a hash, so it can\'t show it again. {date} is the day it was made.'},
+    copy: {id: 'calendar.subscribe.copy', defaultMessage: 'Copy', description: 'Button of the Subscribe dialog: copies the calendar link.'},
+    copied: {id: 'calendar.subscribe.copied', defaultMessage: 'Copied', description: 'The Copy button of the Subscribe dialog once the link is copied.'},
+    copySelect: {id: 'calendar.subscribe.copy_select', defaultMessage: 'Press Ctrl+C (⌘C on a Mac) to copy the selected link.', description: 'Shown in the Subscribe dialog when the browser didn\'t let the app copy the link: the link is selected for the person to copy.'},
+    resetLink: {id: 'calendar.subscribe.reset', defaultMessage: 'Reset link', description: 'Button of the Subscribe dialog: makes a new calendar link and stops the old one working.'},
+    resetConfirm: {id: 'calendar.subscribe.reset.confirm', defaultMessage: 'The current link stops working at once, and calendars subscribed to it stop updating. Reset it?', description: 'Confirmation shown in the Subscribe dialog after pressing Reset link, before the link is replaced.'},
+    close: {id: 'calendar.close', defaultMessage: 'Close'},
     openCallPost: {id: 'calendar.community_calls.open', defaultMessage: 'Open the post of {title}', description: 'Accessible label of a community call in the calendar: opens the call\'s post in its channel.'},
 
     // The next call in the channel header

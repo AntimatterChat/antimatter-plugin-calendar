@@ -798,3 +798,87 @@
     border-radius: 50%;
     background: currentColor;
 }
+
+/* The Community calls layer's own menu (Subscribe…), beside its chip */
+.amc-layer {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.amc-root .amc-layer-menu-btn {
+    width: 28px;
+    height: 28px;
+}
+
+.amc-ic[data-icon="dots"] {
+    stroke-width: 3;
+}
+
+.amc-layer-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 5;
+    display: grid;
+    min-width: 180px;
+    padding: 6px;
+    border: 1px solid var(--amc-line);
+    border-radius: 12px;
+    background: var(--am-raise, var(--center-channel-bg, #fff));
+    box-shadow: var(--am-shadow, 0 8px 24px rgba(0, 0, 0, 0.2));
+}
+
+.amc-root .amc-layer-menu button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 7px;
+    text-align: left;
+    font-size: 13.5px;
+    color: var(--amc-text-2);
+}
+
+.amc-root .amc-layer-menu button:hover,
+.amc-root .amc-layer-menu button:focus-visible {
+    background: var(--amc-hover);
+    color: var(--amc-text);
+}
+
+/* The Subscribe dialog: the link, Copy, the warning and the reset's confirmation */
+.amc-feed-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.amc-feed-row .amc-feed-url {
+    flex: 1 1 220px;
+    min-width: 0;
+    font-family: var(--amc-mono);
+    font-size: 12.5px;
+}
+
+.amc-feed-warning {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--amc-text-2);
+}
+
+.amc-feed-confirm {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--amc-line);
+    border-radius: 10px;
+    background: var(--amc-side);
+}
+
+.amc-feed-confirm p {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--amc-text);
+}
