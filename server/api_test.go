@@ -52,7 +52,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	p := &Plugin{
 		MattermostPlugin: plugin.MattermostPlugin{API: api},
-		configuration:    &configuration{AllowPrivateNetworks: true, AllowInsecureConnections: true, EnableReminders: true},
+		configuration:    &configuration{AllowPrivateNetworks: true, AllowInsecureConnections: true, EnableReminders: true, AllowCalendarFeeds: true},
 		store:            NewStore(kv, box),
 	}
 	p.router = p.newRouter()

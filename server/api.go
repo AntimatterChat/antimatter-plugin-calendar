@@ -32,6 +32,9 @@ const (
 type ClientConfig struct {
 	RemindersEnabled         bool `json:"reminders_enabled"`
 	AllowInsecureConnections bool `json:"allow_insecure_connections"`
+	// CalendarFeedsEnabled is the "Allow calendar feeds" setting: the web app offers Subscribe
+	// only when it's on.
+	CalendarFeedsEnabled bool `json:"calendar_feeds_enabled"`
 }
 
 // accountView is an account as shown to its user, without the password.
@@ -82,12 +85,20 @@ type calendarError struct {
 }
 
 // newRouter returns the router of the plugin's REST API, served under
-// /plugins/com.antimatterchat.calendar/api/v1.
+// /plugins/com.antimatterchat.calendar/api/v1, and of its calendar feeds.
 func (p *Plugin) newRouter() *mux.Router {
+	if p.feedLimiter == nil {
+		p.feedLimiter = newFeedLimiter()
+	}
 	router := mux.NewRouter()
-	router.Use(p.requireUser)
+
+	// The calendar feeds are read by calendar apps, without a session: the feed's token is the
+	// only credential (feeds_api.go). This is the ONE route without requireUser; every other
+	// route is in the api subrouter below (TestRoutesRequireUser walks them all).
+	router.HandleFunc(feedRoute, p.handleFeed).Methods(http.MethodGet, http.MethodHead)
 
 	api := router.PathPrefix("/api/v1").Subrouter()
+	api.Use(p.requireUser)
 	api.HandleFunc("/config", p.handleGetConfig).Methods(http.MethodGet)
 	api.HandleFunc("/account", p.handleGetAccount).Methods(http.MethodGet)
 	api.HandleFunc("/account", p.handleSaveAccount).Methods(http.MethodPut)
@@ -110,6 +121,11 @@ func (p *Plugin) newRouter() *mux.Router {
 	api.HandleFunc("/meetings/{meetingId}/rsvp", p.handleSetRSVP).Methods(http.MethodPost)
 	api.HandleFunc("/meetings/{meetingId}/reminder", p.handleSetReminderOverride).Methods(http.MethodPost)
 	api.HandleFunc("/meetings/{meetingId}/ics", p.handleMeetingICS).Methods(http.MethodGet)
+
+	// The caller's own calendar feed of a community: whether they have one, and a new one (which
+	// revokes the old).
+	api.HandleFunc("/teams/{teamId}/feed", p.handleGetFeed).Methods(http.MethodGet)
+	api.HandleFunc("/teams/{teamId}/feed", p.handleCreateFeed).Methods(http.MethodPost)
 
 	return router
 }
@@ -200,7 +216,7 @@ func (s *session) validCalendar(calendar string) error {
 
 func (p *Plugin) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 	cfg := p.getConfiguration()
-	p.writeJSON(w, ClientConfig{RemindersEnabled: cfg.EnableReminders, AllowInsecureConnections: cfg.AllowInsecureConnections})
+	p.writeJSON(w, ClientConfig{RemindersEnabled: cfg.EnableReminders, AllowInsecureConnections: cfg.AllowInsecureConnections, CalendarFeedsEnabled: cfg.AllowCalendarFeeds})
 }
 
 func (p *Plugin) handleGetAccount(w http.ResponseWriter, r *http.Request) {

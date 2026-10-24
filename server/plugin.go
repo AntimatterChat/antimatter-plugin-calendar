@@ -52,6 +52,9 @@ type Plugin struct {
 	// tlsConfig is nil for the default TLS configuration (tests set their own CA).
 	tlsConfig *tls.Config
 
+	// feedLimiter limits how often each calendar feed is read, on this server.
+	feedLimiter *feedLimiter
+
 	// meetingReindexAt is when reindexMovedMeetings last checked every meeting's community.
 	meetingReindexMu sync.Mutex
 	meetingReindexAt time.Time

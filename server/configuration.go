@@ -28,6 +28,11 @@ type configuration struct {
 
 	// EnableReminders makes the Calendar bot remind users of their events.
 	EnableReminders bool
+
+	// AllowCalendarFeeds lets members subscribe to a private ICS feed of their community's
+	// scheduled calls (feeds.go). On by default (plugin.json); off, every feed answers 404 and
+	// the web app hides Subscribe.
+	AllowCalendarFeeds bool
 }
 
 // Clone shallow copies the configuration. Your implementation may require a deep copy if

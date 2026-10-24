@@ -43,6 +43,13 @@
                 "type": "bool",
                 "default": false,
                 "help_text": "When true, users can connect to calendar servers over plain HTTP. Their passwords and calendars then cross the network unencrypted."
+            },
+            {
+                "key": "AllowCalendarFeeds",
+                "display_name": "Allow calendar feeds",
+                "type": "bool",
+                "default": true,
+                "help_text": "When true, members can subscribe to a private link (an ICS feed) of their community's scheduled calls from their own calendar app. Anyone who has a member's link sees the calls that member can see, so each member can reset theirs. When false, every feed link stops working and Subscribe is hidden."
             }
         ]
     }
