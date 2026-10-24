@@ -236,6 +236,16 @@ func TestAPIEvents(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	w = e.request(t, http.MethodGet, "/api/v1/events?from=bad&to=bad", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	// A request can't queue a query per calendar for an unbounded list from the URL
+	many := make([]string, maxListedCalendars+1)
+	for i := range many {
+		many[i] = testWork
+	}
+	manyQuery := url.Values{"from": {"2026-10-05T00:00:00+02:00"}, "to": {"2026-10-19T00:00:00+02:00"}, "tz": {"Europe/Paris"}, "calendars": {strings.Join(many, ",")}}
+	w = e.request(t, http.MethodGet, "/api/v1/events?"+manyQuery.Encode(), nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "too many calendars")
 }
 
 func jsonNumber(n int64) string {
