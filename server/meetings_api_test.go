@@ -478,6 +478,42 @@ func TestOrganizerInviteeHidesTheAddress(t *testing.T) {
 	}
 }
 
+// TestMeetingRoutesUnreadableChannel checks every route on one meeting for a caller who can't
+// read its channel (a private channel they aren't in, or one they left): each answers 404, as if
+// it didn't exist, and nothing is changed, even for the call's own organiser.
+func TestMeetingRoutesUnreadableChannel(t *testing.T) {
+	e := newMeetingTestEnv(t)
+	channelID := model.NewId()
+	m := testMeeting()
+	m.ChannelID = channelID
+	m.OrganizerID = e.userID
+	require.NoError(t, e.p.store.CreateMeeting(m))
+	e.api.On("HasPermissionToChannel", e.userID, channelID, model.PermissionReadChannel).Return(false)
+
+	minutes := 60
+	for name, req := range map[string]struct {
+		method, path string
+		body         any
+	}{
+		"get":      {http.MethodGet, "", nil},
+		"ics":      {http.MethodGet, "/ics", nil},
+		"rsvp":     {http.MethodPost, "/rsvp", map[string]string{"status": "going"}},
+		"reminder": {http.MethodPost, "/reminder", map[string]any{"minutes": minutes}},
+		"edit":     {http.MethodPut, "", meetingBody(time.Now().Add(2 * time.Hour))},
+		"cancel":   {http.MethodDelete, "", nil},
+	} {
+		w := e.request(t, req.method, "/api/v1/meetings/"+m.ID+req.path, req.body)
+		assert.Equal(t, http.StatusNotFound, w.Code, name)
+	}
+
+	stored, err := e.p.store.GetMeeting(m.ID)
+	require.NoError(t, err)
+	assert.False(t, stored.Cancelled)
+	assert.Equal(t, 0, stored.Sequence)
+	assert.Empty(t, stored.RSVPs)
+	assert.Empty(t, stored.ReminderOverrides)
+}
+
 // TestMeetingViewOnlyTheCallersOwn checks that a meeting's view carries the caller's own RSVP and
 // reminder choice and nobody else's, whoever asks (the organiser included).
 func TestMeetingViewOnlyTheCallersOwn(t *testing.T) {
