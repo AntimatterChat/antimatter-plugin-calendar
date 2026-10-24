@@ -110,6 +110,7 @@ func (p *Plugin) handleCreateMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Summary, in.Description = strings.TrimSpace(in.Summary), strings.TrimSpace(in.Description)
+	in.Start, in.End = wholeSeconds(in.Start), wholeSeconds(in.End)
 	if err := validateMeetingInput(in.Summary, in.Description, time.UnixMilli(in.Start), time.UnixMilli(in.End)); err != nil {
 		p.writeError(w, err)
 		return
@@ -182,6 +183,13 @@ func (p *Plugin) handleCreateMeeting(w http.ResponseWriter, r *http.Request) {
 	p.writeMeetingView(w, r, m)
 }
 
+// wholeSeconds drops the milliseconds of a time in milliseconds since the epoch. A call's times
+// are kept to the second, as iCalendar has them: a recurring series is expanded from its DTSTART
+// to the second, so a start with milliseconds would never equal its own first occurrence.
+func wholeSeconds(ms int64) int64 {
+	return time.UnixMilli(ms).Truncate(time.Second).UnixMilli()
+}
+
 // handleGetMeeting returns a meeting, for members who can read its channel.
 func (p *Plugin) handleGetMeeting(w http.ResponseWriter, r *http.Request) {
 	m, err := p.loadReadableMeeting(w, r)
@@ -204,6 +212,7 @@ func (p *Plugin) handleEditMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Summary, in.Description = strings.TrimSpace(in.Summary), strings.TrimSpace(in.Description)
+	in.Start, in.End = wholeSeconds(in.Start), wholeSeconds(in.End)
 	if err := validateMeetingInput(in.Summary, in.Description, time.UnixMilli(in.Start), time.UnixMilli(in.End)); err != nil {
 		p.writeError(w, err)
 		return

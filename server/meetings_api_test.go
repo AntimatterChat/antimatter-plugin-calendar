@@ -87,6 +87,8 @@ func TestHandleCreateMeeting(t *testing.T) {
 	stored, err := e.p.store.GetMeeting(m.ID)
 	require.NoError(t, err)
 	assert.Equal(t, m.PostID, stored.PostID)
+	assert.Equal(t, start.Truncate(time.Second).UnixMilli(), stored.Start, "a call's times are kept to the second")
+	assert.Zero(t, stored.End%1000)
 
 	// An empty title is refused.
 	bad := meetingBody(start)

@@ -12,7 +12,8 @@ import (
 )
 
 func testMeeting() *Meeting {
-	now := time.Now()
+	// To the second, as the API stores a call's times (see wholeSeconds).
+	now := time.Now().Truncate(time.Second)
 	return &Meeting{
 		ID:          "meeting1",
 		ChannelID:   "channel1",

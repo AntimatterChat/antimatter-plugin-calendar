@@ -5,8 +5,9 @@ The routes the web app and the mobile app use for calls scheduled in a channel (
 or the mobile app's `Authorization: Bearer <token>`); the server passes their user ID to the app, and every route
 answers `401` without one.
 
-Times are milliseconds since the epoch (UTC). IDs are the server's 26-character IDs. An error is
-`{"error": "<message>"}` with the status given below; the message is English, for logs, not for display.
+Times are milliseconds since the epoch (UTC); a call's `start` and `end` are kept to the whole second. IDs are the
+server's 26-character IDs. An error is `{"error": "<message>"}` with the status given below; the message is English,
+for logs, not for display.
 
 ## The meeting
 
