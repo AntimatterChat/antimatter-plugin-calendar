@@ -246,7 +246,8 @@ hash of the body); `If-None-Match` with it answers `304`. The body is an iCalend
   the `URL`.
 - `ORGANIZER` is the organiser's address only when the server shows email addresses, else the server's
   notification address (as in the invitation emails).
-- The one `ATTENDEE` is the member, with their own `PARTSTAT` (for a series, their answer for the whole series);
+- The one `ATTENDEE` is the member as `urn:uuid:<user id>` (no address, no name: a leaked link says nothing
+  about whose it is), with their own `PARTSTAT` (for a series, their answer for the whole series);
   the `VALARM` is their own reminder (their override, else the call's). Nobody else's address, answer or reminder
   is ever in it.
 

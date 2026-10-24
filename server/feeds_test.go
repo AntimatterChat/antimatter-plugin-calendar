@@ -82,7 +82,7 @@ func newFeedEnv(t *testing.T) *feedEnv {
 		return cfg
 	}).Maybe()
 	api.On("GetUser", f.userID).Return(func(string) (*model.User, *model.AppError) {
-		u := &model.User{Id: f.userID, Username: "maya", Email: "maya@example.com", FirstName: "Maya", LastName: "Rossi", Locale: "en"}
+		u := &model.User{Id: f.userID, Username: "maya.rossi", Email: "maya@example.com", FirstName: "Maya", LastName: "Rossi", Locale: "en"}
 		if f.get(func(f *feedEnv) bool { return f.deactivated }) {
 			u.DeleteAt = model.GetMillis()
 		}
@@ -280,7 +280,8 @@ func TestFeedContent(t *testing.T) {
 	assert.Equal(t, "https://chat.example.com/lab/pl/"+oneOff.PostID, ev.Props.Get(ical.PropURL).Value)
 	attendees := ev.Props.Values(ical.PropAttendee)
 	require.Len(t, attendees, 1, "only the member")
-	assert.Equal(t, "mailto:maya@example.com", attendees[0].Value)
+	assert.Equal(t, "urn:uuid:"+f.userID, attendees[0].Value)
+	assert.Empty(t, attendees[0].Params.Get(ical.ParamCommonName), "no name")
 	assert.Equal(t, "ACCEPTED", attendees[0].Params.Get(ical.ParamParticipationStatus))
 	require.Len(t, ev.Children, 1)
 	assert.Equal(t, "-PT15M", ev.Children[0].Props.Get(ical.PropTrigger).Value, "the member's own reminder")
@@ -335,13 +336,35 @@ func TestFeedHasNoOtherAttendees(t *testing.T) {
 
 	attendees := ev.Props.Values(ical.PropAttendee)
 	require.Len(t, attendees, 1)
-	assert.Equal(t, "mailto:maya@example.com", attendees[0].Value)
+	assert.Equal(t, "urn:uuid:"+f.userID, attendees[0].Value)
 	assert.Equal(t, "NEEDS-ACTION", attendees[0].Params.Get(ical.ParamParticipationStatus), "the member hasn't answered; others' answers aren't theirs")
 	assert.Equal(t, 1, strings.Count(body, "ATTENDEE"))
 	assert.Equal(t, 1, strings.Count(body, "PARTSTAT="))
 	for _, leak := range []string{"ada@secret.example", f.otherUserID, f.organizerID, "DECLINED", "TENTATIVE", "-PT1440M"} {
 		assert.NotContains(t, body, leak)
 	}
+}
+
+// TestFeedSaysNothingOfItsMember is a privacy regression test: a leaked link shows the calls and
+// nothing about whose link it is — not the member's address, username or name, even with the
+// server showing email addresses.
+func TestFeedSaysNothingOfItsMember(t *testing.T) {
+	f := newFeedEnv(t)
+	f.set(func(f *feedEnv) { f.showEmails = true })
+	m := f.meeting(t, f.publicID, "Standup", time.Hour)
+	_, err := f.p.store.SetRSVP(m.ID, f.userID, RSVPGoing, 0)
+	require.NoError(t, err)
+
+	w := f.fetch(t, f.createFeed(t))
+	cal := decodeFeed(t, w)
+	body := unfolded(w)
+	for _, leak := range []string{"maya@example.com", "maya.rossi", "Maya", "Rossi", "mailto:maya"} {
+		assert.NotContains(t, body, leak)
+	}
+	attendee := feedEvents(cal)[meetingUID(m.ID)].Props.Get(ical.PropAttendee)
+	require.NotNil(t, attendee)
+	assert.Equal(t, "urn:uuid:"+f.userID, attendee.Value)
+	assert.Equal(t, "ACCEPTED", attendee.Params.Get(ical.ParamParticipationStatus), "the PARTSTAT stays")
 }
 
 // TestFeedNotFoundIsUniform is the security regression test of the feed's failures: an unknown

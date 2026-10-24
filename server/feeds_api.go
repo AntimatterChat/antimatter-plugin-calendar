@@ -315,8 +315,8 @@ type feedEventContext struct {
 }
 
 // addFeedEvent adds a meeting (a one-off call, or a whole series with its RRULE and EXDATEs) to a
-// feed calendar, as its member alone may see it: their own PARTSTAT and reminder, nobody else's
-// answers or addresses. Its UID is the meeting's iTIP UID, so a calendar that also got the email
+// feed calendar, as its member alone may see it: their own PARTSTAT (on urn:uuid:<their user ID>,
+// never their address or name) and reminder, nobody else's answers or addresses. Its UID is the meeting's iTIP UID, so a calendar that also got the email
 // invitation shows one event. A series in a time zone is written in it (TZID, with its VTIMEZONE),
 // so it keeps its local time across daylight saving changes; anything else in UTC.
 func addFeedEvent(cal *ical.Calendar, m *Meeting, c feedEventContext) {
@@ -391,7 +391,10 @@ func addFeedEvent(cal *ical.Calendar, m *Meeting, c feedEventContext) {
 	} else if answer, ok := m.effectiveRSVP(c.viewer.Id, m.Start); ok {
 		rsvp = answer.Status
 	}
-	you := addressProp(ical.PropAttendee, c.viewer.Email, c.viewer.GetFullName())
+	// The member by their user ID only: no address, no name, so a leaked link says nothing about
+	// whose it is.
+	you := ical.NewProp(ical.PropAttendee)
+	you.Value = "urn:uuid:" + c.viewer.Id
 	you.Params.Set(ical.ParamRole, "REQ-PARTICIPANT")
 	you.Params.Set(ical.ParamParticipationStatus, partStat(rsvp))
 	ev.Props.Add(you)
