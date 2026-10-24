@@ -91,7 +91,9 @@ func TestMeetingOccurrencesBounded(t *testing.T) {
 // one-off meeting) is over.
 func TestNextMeetingOccurrence(t *testing.T) {
 	m := testRecurringMeeting("FREQ=WEEKLY")
-	first := time.UnixMilli(m.Start)
+	// The series has no time zone, so it's expanded in UTC: compute the expected dates there too,
+	// or a run in a zone whose clocks change within the week sees an hour's difference.
+	first := time.UnixMilli(m.Start).UTC()
 	second := first.AddDate(0, 0, 7)
 
 	start, end, ok := nextMeetingOccurrence(m, first.Add(-time.Hour))
@@ -121,7 +123,7 @@ func TestLastMeetingOccurrence(t *testing.T) {
 	bounded := testRecurringMeeting("FREQ=DAILY;COUNT=3")
 	last, ok := lastMeetingOccurrence(bounded)
 	require.True(t, ok)
-	assert.True(t, last.Equal(time.UnixMilli(bounded.Start).AddDate(0, 0, 2)))
+	assert.True(t, last.Equal(time.UnixMilli(bounded.Start).UTC().AddDate(0, 0, 2)), "expanded in UTC (no time zone): %s", last)
 
 	endless := testRecurringMeeting("FREQ=DAILY")
 	_, ok = lastMeetingOccurrence(endless)
