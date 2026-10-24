@@ -39,13 +39,14 @@ type accountView struct {
 	URL           string `json:"url"`
 	Username      string `json:"username"`
 	RemindMinutes int    `json:"remind_minutes"`
+	EmailInvites  bool   `json:"email_invites"`
 }
 
 func newAccountView(a *Account) *accountView {
 	if a == nil {
 		return nil
 	}
-	return &accountView{URL: a.URL, Username: a.Username, RemindMinutes: a.RemindMinutes}
+	return &accountView{URL: a.URL, Username: a.Username, RemindMinutes: a.RemindMinutes, EmailInvites: a.EmailInvites}
 }
 
 // accountRequest saves an account. An empty password keeps the stored one.
@@ -97,6 +98,15 @@ func (p *Plugin) newRouter() *mux.Router {
 	api.HandleFunc("/event", p.handleGetEvent).Methods(http.MethodGet)
 	api.HandleFunc("/event", p.handleUpdateEvent).Methods(http.MethodPut)
 	api.HandleFunc("/event", p.handleDeleteEvent).Methods(http.MethodDelete)
+
+	// Scheduling a call for a channel: a shared meeting, independent of anyone's personal
+	// calendar (see meetings.go).
+	api.HandleFunc("/channels/{channelId}/meetings", p.handleCreateMeeting).Methods(http.MethodPost)
+	api.HandleFunc("/meetings/{meetingId}", p.handleGetMeeting).Methods(http.MethodGet)
+	api.HandleFunc("/meetings/{meetingId}", p.handleEditMeeting).Methods(http.MethodPut)
+	api.HandleFunc("/meetings/{meetingId}", p.handleCancelMeeting).Methods(http.MethodDelete)
+	api.HandleFunc("/meetings/{meetingId}/rsvp", p.handleSetRSVP).Methods(http.MethodPost)
+	api.HandleFunc("/meetings/{meetingId}/ics", p.handleMeetingICS).Methods(http.MethodGet)
 
 	return router
 }
@@ -211,7 +221,7 @@ func (p *Plugin) handleSaveAccount(w http.ResponseWriter, r *http.Request) {
 		existing = nil
 	}
 
-	account := &Account{URL: strings.TrimSpace(req.URL), Username: strings.TrimSpace(req.Username), Password: req.Password, RemindMinutes: req.RemindMinutes}
+	account := &Account{URL: strings.TrimSpace(req.URL), Username: strings.TrimSpace(req.Username), Password: req.Password, RemindMinutes: req.RemindMinutes, EmailInvites: req.EmailInvites}
 	if account.Password == "" && existing != nil && sameServer(existing, account) {
 		account.Password = existing.Password
 	}

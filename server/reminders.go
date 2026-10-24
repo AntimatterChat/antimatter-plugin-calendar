@@ -99,6 +99,8 @@ func (s *reminderService) run(now time.Time) {
 	if !s.p.getConfiguration().EnableReminders {
 		return
 	}
+	s.runMeetingReminders(now)
+
 	userIDs, err := s.p.store.ListAccountUsers()
 	if err != nil {
 		s.p.API.LogWarn("Failed to list the calendar accounts", "err", err.Error())
@@ -248,6 +250,123 @@ func (s *reminderService) send(userID string, r reminder, now time.Time) error {
 		return errors.Wrap(appErr, "failed to post the reminder")
 	}
 	return nil
+}
+
+// meetingReminderSentKeyTTL only needs to cover the few minutes a meeting's reminder could be
+// due; it's kept well clear of that so a restart during the grace period can't send it twice.
+const meetingReminderSentKeyTTL = 24 * time.Hour
+
+// meetingReminderSentKey identifies a meeting's reminder, so it's sent once for everyone (a
+// single claim, rather than one per member: the reminder goes out to the whole channel at once).
+func meetingReminderSentKey(meetingID string) string {
+	return sentKeyPrefix + "meeting_" + meetingID
+}
+
+// runMeetingReminders sends the reminder of every scheduled meeting that's due, to the members of
+// its channel who haven't declined.
+func (s *reminderService) runMeetingReminders(now time.Time) {
+	ids, err := s.p.store.ListMeetingIDs()
+	if err != nil {
+		s.p.API.LogWarn("Failed to list the scheduled meetings", "err", err.Error())
+		return
+	}
+	for _, id := range ids {
+		m, err := s.p.store.GetMeeting(id)
+		if err != nil {
+			s.p.API.LogWarn("Failed to read a scheduled meeting", "err", err.Error())
+			continue
+		}
+		if m == nil || m.Cancelled {
+			continue
+		}
+		due := time.UnixMilli(m.Start).Add(-meetingReminderMinutes * time.Minute)
+		if due.After(now) || now.Sub(due) > reminderGrace {
+			continue
+		}
+		// Claim it: whichever server of the cluster gets there first sends it, once, to everyone
+		if claimed, err := s.p.store.Claim(meetingReminderSentKey(m.ID), meetingReminderSentKeyTTL); err != nil || !claimed {
+			continue
+		}
+		s.sendMeetingReminder(m, now)
+	}
+}
+
+// sendMeetingReminder DMs the members of a meeting's channel who haven't declined it.
+func (s *reminderService) sendMeetingReminder(m *Meeting, now time.Time) {
+	channel, appErr := s.p.API.GetChannel(m.ChannelID)
+	if appErr != nil {
+		s.p.API.LogWarn("Failed to read a meeting's channel for its reminder", "err", appErr.Error())
+		return
+	}
+	link := &EventLink{ChannelID: channel.Id, ChannelName: channel.Name, DisplayName: channel.DisplayName, ChannelType: string(channel.Type)}
+	if channel.TeamId != "" {
+		if team, appErr := s.p.API.GetTeam(channel.TeamId); appErr == nil {
+			link.TeamName = team.Name
+		}
+	}
+	permalink := s.p.permalink(link)
+
+	memberIDs, err := s.p.channelMemberIDs(m.ChannelID)
+	if err != nil {
+		s.p.API.LogWarn("Failed to list a meeting's members for its reminder", "err", err.Error())
+		return
+	}
+	for _, userID := range memberIDs {
+		if m.RSVPs[userID].Status == RSVPNo {
+			continue
+		}
+		if err := s.sendMeetingDM(userID, m, channel, permalink, now); err != nil {
+			s.p.API.LogWarn("Failed to send a meeting reminder", "user_id", userID, "err", err.Error())
+		}
+	}
+}
+
+// sendMeetingDM posts a meeting's reminder in a member's direct channel with the Calendar bot.
+func (s *reminderService) sendMeetingDM(userID string, m *Meeting, channel *model.Channel, permalink string, now time.Time) error {
+	dm, appErr := s.p.API.GetDirectChannel(userID, s.p.botID)
+	if appErr != nil {
+		return errors.Wrap(appErr, "failed to get the direct channel")
+	}
+	loc, locale := s.userSettings(userID)
+	message := meetingReminderMessage(newTranslator(s.p.translations, locale), m, now, loc, channel, permalink)
+
+	post := &model.Post{
+		UserId:    s.p.botID,
+		ChannelId: dm.Id,
+		Message:   message,
+		Props: model.StringInterface{
+			"antimatter_calendar_meeting": map[string]any{"id": m.ID},
+		},
+	}
+	if _, appErr := s.p.API.CreatePost(post); appErr != nil {
+		return errors.Wrap(appErr, "failed to post the meeting reminder")
+	}
+	return nil
+}
+
+// meetingReminderMessage is the text of a meeting's reminder, in a member's language and time
+// zone.
+func meetingReminderMessage(t *translator, m *Meeting, now time.Time, loc *time.Location, channel *model.Channel, permalink string) string {
+	start := time.UnixMilli(m.Start).In(loc)
+	summary := escapeMarkdown(m.Summary)
+	clock := start.Format("15:04")
+
+	var when string
+	minutes := int(start.Sub(now).Round(time.Minute) / time.Minute)
+	if minutes <= 0 {
+		when = t.T(msgNow, map[string]any{"Time": clock})
+	} else {
+		when = t.T(msgInMinutes, map[string]any{"Count": minutes, "Time": clock})
+	}
+
+	lines := []string{t.T(msgStarts, map[string]any{"Summary": summary, "When": when})}
+	name := escapeMarkdown(channel.DisplayName)
+	target := name
+	if permalink != "" {
+		target = fmt.Sprintf("[%s](%s)", name, permalink)
+	}
+	lines = append(lines, t.T(msgJoinCall, map[string]any{"Channel": target}))
+	return strings.Join(lines, "\n")
 }
 
 // The messages of reminders. Their translations are in assets/i18n.

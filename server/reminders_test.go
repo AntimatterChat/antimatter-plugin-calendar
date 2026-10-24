@@ -157,3 +157,52 @@ func TestRemindersRun(t *testing.T) {
 	e.p.reminders.invalidate(e.userID)
 	e.p.reminders.run(time.Date(2026, 10, 5, 10, 45, 0, 0, paris))
 }
+
+// TestMeetingRemindersRun checks that a scheduled meeting's reminder goes out to the channel's
+// members, except the ones who declined, once, at the right time.
+func TestMeetingRemindersRun(t *testing.T) {
+	e := newTestEnv(t)
+	e.p.botID = model.NewId()
+	e.p.reminders = newReminderService(e.p)
+	translations, err := newTranslations(filepath.Join("..", translationsDir))
+	require.NoError(t, err)
+	e.p.translations = translations
+
+	paris := mustLoad(t, "Europe/Paris")
+	channelID := model.NewId()
+	channel := &model.Channel{Id: channelID, Name: "standup", DisplayName: "Standup", Type: model.ChannelTypeOpen}
+	start := time.Date(2026, 10, 5, 11, 0, 0, 0, paris)
+
+	goingUser, decliningUser := model.NewId(), model.NewId()
+	m := &Meeting{
+		ID: "meeting1", ChannelID: channelID, OrganizerID: model.NewId(),
+		Summary: "Team sync", Start: start.UnixMilli(), End: start.Add(30 * time.Minute).UnixMilli(),
+		RSVPs: map[string]RSVP{decliningUser: {Status: RSVPNo}},
+	}
+	require.NoError(t, e.p.store.CreateMeeting(m))
+
+	e.api.On("GetChannel", channelID).Return(channel, nil)
+	e.api.On("GetChannelMembers", channelID, 0, 200).Return(model.ChannelMembers{
+		{ChannelId: channelID, UserId: goingUser},
+		{ChannelId: channelID, UserId: decliningUser},
+	}, nil)
+
+	goingDM := &model.Channel{Id: model.NewId(), Type: model.ChannelTypeDirect}
+	e.api.On("GetUser", goingUser).Return(&model.User{
+		Id: goingUser, Locale: "en", Timezone: model.StringMap{"useAutomaticTimezone": "false", "manualTimezone": "Europe/Paris"},
+	}, nil)
+	e.api.On("GetDirectChannel", goingUser, e.p.botID).Return(goingDM, nil)
+	e.api.On("CreatePost", mock.MatchedBy(func(post *model.Post) bool {
+		return post.UserId == e.p.botID && post.ChannelId == goingDM.Id && strings.Contains(post.Message, "Team sync")
+	})).Return(&model.Post{}, nil).Once()
+
+	// Not due yet: 20 minutes out, the reminder is only 10 minutes before.
+	e.p.reminders.runMeetingReminders(start.Add(-20 * time.Minute))
+
+	// Due now.
+	e.p.reminders.runMeetingReminders(start.Add(-10 * time.Minute))
+
+	// Still within the grace period, but already sent: not sent again (the CreatePost mock above
+	// is Once(), so a second attempt would fail this test).
+	e.p.reminders.runMeetingReminders(start.Add(-9 * time.Minute))
+}

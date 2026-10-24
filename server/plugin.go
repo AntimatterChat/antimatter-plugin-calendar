@@ -39,6 +39,11 @@ type Plugin struct {
 	// translations translate the reminders to the users' languages.
 	translations *i18n.Bundle
 
+	// inviteSender sends a meeting's iTIP email invitations, off the request that scheduled,
+	// edited or cancelled it (OnActivate runs it in its own goroutine). nil (as in a test that
+	// doesn't exercise it) skips sending invitations.
+	inviteSender func(m *Meeting, channel *model.Channel, organizer *model.User)
+
 	// tlsConfig is nil for the default TLS configuration (tests set their own CA).
 	tlsConfig *tls.Config
 }
@@ -56,6 +61,9 @@ func (p *Plugin) OnActivate() error {
 
 	p.store = NewStore(p.API, box)
 	p.router = p.newRouter()
+	p.inviteSender = func(m *Meeting, channel *model.Channel, organizer *model.User) {
+		go p.sendMeetingInvites(m, channel, organizer)
+	}
 
 	bundlePath, err := p.API.GetBundlePath()
 	if err != nil {

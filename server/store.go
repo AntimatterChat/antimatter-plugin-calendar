@@ -46,6 +46,10 @@ type Account struct {
 	// of them, 0 for no reminders.
 	RemindMinutes int `json:"remind_minutes"`
 
+	// EmailInvites is whether the user also wants an iTIP email invitation (with a REQUEST or
+	// CANCEL .ics attached) for meetings scheduled in channels they're a member of.
+	EmailInvites bool `json:"email_invites"`
+
 	Password string `json:"-"`
 }
 
