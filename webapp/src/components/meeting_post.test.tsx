@@ -205,6 +205,11 @@ describe('MeetingPost', () => {
         await waitFor(() => expect(mocked.cancelMeeting).toHaveBeenCalledWith('meeting1', 'occurrence'));
         expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({title: 'Cancel this call only?'}));
 
+        // Let the cancellation's answer land before asking for the next one.
+        await act(async () => {
+            await Promise.resolve();
+        });
+
         act(() => {
             screen.getByRole('button', {name: 'Cancel the call'}).click();
         });
