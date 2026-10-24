@@ -243,7 +243,7 @@ describe('CalendarPanel', () => {
             renderPanel();
 
             expect(await screen.findByText('Couldn’t read Community calls: boom')).toBeInTheDocument();
-            expect(screen.getByTestId('calendar-day-empty')).toBeInTheDocument();
+            expect(await screen.findByTestId('calendar-day-empty')).toBeInTheDocument();
         });
     });
 });
